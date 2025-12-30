@@ -1,3 +1,76 @@
+use std::fs;
+
+use anyhow::Result;
+use clap::Parser;
+use log::{error, info};
+
+use bento::atlas::AtlasBuilder;
+use bento::cli::Args;
+use bento::output::{save_atlas_image, write_godot_resources, write_json};
+use bento::sprite::load_sprites;
+
 fn main() {
-    println!("Hello, world!");
+    if let Err(e) = run() {
+        error!("{:#}", e);
+        std::process::exit(1);
+    }
+}
+
+fn run() -> Result<()> {
+    let args = Args::parse();
+
+    // Initialize logging
+    env_logger::Builder::new()
+        .filter_level(if args.verbose {
+            log::LevelFilter::Debug
+        } else {
+            log::LevelFilter::Info
+        })
+        .format_timestamp(None)
+        .format_target(false)
+        .init();
+
+    info!("Bento texture packer v{}", env!("CARGO_PKG_VERSION"));
+
+    // Create output directory if it doesn't exist
+    if !args.output.exists() {
+        fs::create_dir_all(&args.output)?;
+    }
+
+    // Load sprites
+    let sprites = load_sprites(&args.input, !args.no_trim)?;
+    info!("Loaded {} sprites", sprites.len());
+
+    // Build atlases
+    let atlases = AtlasBuilder::new(args.max_width, args.max_height)
+        .padding(args.padding)
+        .heuristic(args.heuristic)
+        .power_of_two(args.pot)
+        .extrude(args.extrude)
+        .build(sprites)?;
+
+    // Save atlas images
+    for atlas in &atlases {
+        let path = args.output.join(format!("{}_{}.png", args.name, atlas.index));
+        save_atlas_image(atlas, &path, args.opaque)?;
+        info!("Saved {}", path.display());
+    }
+
+    // Write output formats
+    if args.format.should_write_godot() {
+        write_godot_resources(&atlases, &args.output, &args.name, None)?;
+        info!(
+            "Generated {} Godot .tres files",
+            atlases.iter().map(|a| a.sprites.len()).sum::<usize>()
+        );
+    }
+
+    if args.format.should_write_json() {
+        write_json(&atlases, &args.output, &args.name)?;
+        info!("Generated {}.json", args.name);
+    }
+
+    info!("Done!");
+
+    Ok(())
 }
