@@ -69,6 +69,17 @@ struct PackingLayout {
     occupancy: f64,
 }
 
+impl PackingLayout {
+    /// Returns true if this layout is better than another.
+    /// Prefers: more sprites packed, then higher occupancy as tiebreaker.
+    fn is_better_than(&self, other: &PackingLayout) -> bool {
+        let self_packed = self.placements.len();
+        let other_packed = other.placements.len();
+        self_packed > other_packed
+            || (self_packed == other_packed && self.occupancy > other.occupancy)
+    }
+}
+
 impl AtlasBuilder {
     pub fn new(max_width: u32, max_height: u32) -> Self {
         Self {
@@ -155,41 +166,34 @@ impl AtlasBuilder {
         sprites: Vec<SourceSprite>,
     ) -> Result<(Atlas, Vec<SourceSprite>)> {
         // If Best heuristic mode, try all heuristics (and orderings if pack_mode is Best)
-        let (best_heuristic, best_layout) = if self.heuristic == PackingHeuristic::Best {
-            self.find_best_heuristic(&sprites, index)
-        } else {
-            // Use specified heuristic with original ordering (or try orderings if pack_mode is Best)
-            let orderings: &[SpriteOrdering] = if self.pack_mode == PackMode::Best {
-                &ALL_ORDERINGS
+        let (best_heuristic, best_ordering, best_layout) =
+            if self.heuristic == PackingHeuristic::Best {
+                self.find_best_heuristic(&sprites, index)
             } else {
-                &[SpriteOrdering::Original]
-            };
-
-            let mut best: Option<PackingLayout> = None;
-            for &ordering in orderings {
-                let order = self.sorted_indices(&sprites, ordering);
-                let layout = self.try_pack(&sprites, &order, index, self.heuristic);
-
-                let is_better = match &best {
-                    None => true,
-                    Some(best_layout) => {
-                        let packed_count = layout.placements.len();
-                        let best_packed = best_layout.placements.len();
-                        packed_count > best_packed
-                            || (packed_count == best_packed && layout.occupancy > best_layout.occupancy)
-                    }
+                // Use specified heuristic with original ordering (or try orderings if pack_mode is Best)
+                let orderings: &[SpriteOrdering] = if self.pack_mode == PackMode::Best {
+                    &ALL_ORDERINGS
+                } else {
+                    &[SpriteOrdering::Original]
                 };
 
-                if is_better {
-                    best = Some(layout);
-                }
-            }
+                let mut best: Option<(SpriteOrdering, PackingLayout)> = None;
+                for &ordering in orderings {
+                    let order = self.sorted_indices(&sprites, ordering);
+                    let layout = self.try_pack(&sprites, &order, index, self.heuristic);
 
-            (self.heuristic, best.expect("at least one ordering should be tried"))
-        };
+                    let dominated = best.as_ref().is_some_and(|(_, b)| !layout.is_better_than(b));
+                    if !dominated {
+                        best = Some((ordering, layout));
+                    }
+                }
+
+                let (ordering, layout) = best.expect("at least one ordering should be tried");
+                (self.heuristic, ordering, layout)
+            };
 
         // Apply the best layout
-        self.apply_layout(index, sprites, best_heuristic, best_layout)
+        self.apply_layout(index, sprites, best_heuristic, best_ordering, best_layout)
     }
 
     /// Try packing with a specific heuristic and ordering, return placement info without rendering
@@ -279,8 +283,8 @@ impl AtlasBuilder {
         &self,
         sprites: &[SourceSprite],
         index: usize,
-    ) -> (PackingHeuristic, PackingLayout) {
-        let mut best: Option<(PackingHeuristic, PackingLayout)> = None;
+    ) -> (PackingHeuristic, SpriteOrdering, PackingLayout) {
+        let mut best: Option<(PackingHeuristic, SpriteOrdering, PackingLayout)> = None;
 
         // Determine which orderings to try
         let orderings: &[SpriteOrdering] = if self.pack_mode == PackMode::Best {
@@ -295,24 +299,11 @@ impl AtlasBuilder {
             for &heuristic in &ALL_HEURISTICS {
                 let layout = self.try_pack(sprites, &order, index, heuristic);
 
-                let is_better = match &best {
-                    None => true,
-                    Some((_, best_layout)) => {
-                        // Prefer: more sprites packed, then higher occupancy
-                        let packed_count = layout.placements.len();
-                        let best_packed = best_layout.placements.len();
+                let dominated = best
+                    .as_ref()
+                    .is_some_and(|(_, _, b)| !layout.is_better_than(b));
 
-                        if packed_count > best_packed {
-                            true
-                        } else if packed_count == best_packed {
-                            layout.occupancy > best_layout.occupancy
-                        } else {
-                            false
-                        }
-                    }
-                };
-
-                if is_better {
+                if !dominated {
                     debug!(
                         "Ordering {:?} + Heuristic {:?}: packed {}/{}, occupancy {:.1}%",
                         ordering,
@@ -321,7 +312,7 @@ impl AtlasBuilder {
                         sprites.len(),
                         layout.occupancy * 100.0
                     );
-                    best = Some((heuristic, layout));
+                    best = Some((heuristic, ordering, layout));
                 }
             }
         }
@@ -335,6 +326,7 @@ impl AtlasBuilder {
         index: usize,
         sprites: Vec<SourceSprite>,
         heuristic: PackingHeuristic,
+        ordering: SpriteOrdering,
         layout: PackingLayout,
     ) -> Result<(Atlas, Vec<SourceSprite>)> {
         let (final_width, final_height) = if self.power_of_two {
@@ -384,10 +376,14 @@ impl AtlasBuilder {
             }
         }
 
-        let heuristic_info = if self.heuristic == PackingHeuristic::Best {
-            format!(" (best: {:?})", heuristic)
-        } else {
-            String::new()
+        let optimization_info = match (
+            self.heuristic == PackingHeuristic::Best,
+            self.pack_mode == PackMode::Best,
+        ) {
+            (true, true) => format!(" (best: {:?}, {:?})", heuristic, ordering),
+            (true, false) => format!(" (best: {:?})", heuristic),
+            (false, true) => format!(" (ordering: {:?})", ordering),
+            (false, false) => String::new(),
         };
 
         info!(
@@ -397,7 +393,7 @@ impl AtlasBuilder {
             final_height,
             atlas.sprites.len(),
             layout.occupancy * 100.0,
-            heuristic_info,
+            optimization_info,
         );
 
         Ok((atlas, unpacked))
@@ -634,43 +630,54 @@ mod tests {
 
     #[test]
     fn test_pack_mode_best_with_orderings() {
-        // pack_mode Best should try multiple orderings and potentially get better results.
+        // Test that pack_mode Best actually improves results over Single for pathological cases.
+        //
+        // Bin: 100x60
+        // Sprites in input order: 80x30, 40x50, 50x50
+        //
+        // Original order packs only 1 sprite:
+        //   - 80x30 at (0,0) leaves 20x60 right + 100x30 bottom
+        //   - 40x50 needs 50 height, neither region has it
+        //   - 50x50 same problem
+        //
+        // ByArea order (50x50, 80x30, 40x50) packs 2 sprites:
+        //   - 50x50 at (0,0) leaves 50x60 right + 100x10 bottom
+        //   - 80x30 doesn't fit (needs 80 width or 30 height)
+        //   - 40x50 fits in 50x60 right region
         let create_sprites = || {
-            let mut sprites = Vec::new();
-            // Create sprites with varying sizes where ordering matters
-            let sizes = [(10, 50), (50, 10), (30, 30), (20, 40), (40, 20)];
-            for (i, (w, h)) in sizes.iter().enumerate() {
-                let img = image::RgbaImage::new(*w, *h);
-                sprites.push(SourceSprite {
+            let sizes = [(80, 30), (40, 50), (50, 50)];
+            sizes
+                .iter()
+                .enumerate()
+                .map(|(i, (w, h))| SourceSprite {
                     path: std::path::PathBuf::from(format!("sprite_{}.png", i)),
                     name: format!("sprite_{}", i),
-                    image: img,
+                    image: image::RgbaImage::new(*w, *h),
                     trim_info: TrimInfo::untrimmed(*w, *h),
-                });
-            }
-            sprites
+                })
+                .collect::<Vec<_>>()
         };
 
-        // Pack with pack_mode Best (tries multiple orderings)
-        let best_builder = AtlasBuilder::new(100, 100)
-            .padding(0)
-            .heuristic(PackingHeuristic::BestShortSideFit)
-            .pack_mode(PackMode::Best);
-        let best_result = best_builder.build(create_sprites()).unwrap();
-        let best_packed = best_result[0].sprites.len();
-
         // Pack with pack_mode Single (original ordering only)
-        let single_builder = AtlasBuilder::new(100, 100)
+        let single_builder = AtlasBuilder::new(100, 60)
             .padding(0)
             .heuristic(PackingHeuristic::BestShortSideFit)
             .pack_mode(PackMode::Single);
         let single_result = single_builder.build(create_sprites()).unwrap();
         let single_packed = single_result[0].sprites.len();
 
-        // Best pack mode should be at least as good as single
+        // Pack with pack_mode Best (tries multiple orderings)
+        let best_builder = AtlasBuilder::new(100, 60)
+            .padding(0)
+            .heuristic(PackingHeuristic::BestShortSideFit)
+            .pack_mode(PackMode::Best);
+        let best_result = best_builder.build(create_sprites()).unwrap();
+        let best_packed = best_result[0].sprites.len();
+
+        // Best mode should pack MORE sprites for this pathological input order
         assert!(
-            best_packed >= single_packed,
-            "pack_mode Best ({}) should pack >= pack_mode Single ({})",
+            best_packed > single_packed,
+            "pack_mode Best ({}) should pack more than Single ({}) for this case",
             best_packed,
             single_packed
         );
