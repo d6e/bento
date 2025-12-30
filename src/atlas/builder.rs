@@ -240,6 +240,8 @@ fn next_power_of_two(n: u32) -> u32 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::sprite::TrimInfo;
+    use image::Rgba;
 
     #[test]
     fn test_next_power_of_two() {
@@ -250,5 +252,74 @@ mod tests {
         assert_eq!(next_power_of_two(5), 8);
         assert_eq!(next_power_of_two(100), 128);
         assert_eq!(next_power_of_two(1000), 1024);
+    }
+
+    #[test]
+    fn test_extrusion_with_padding_prevents_underflow() {
+        // Test that extrusion doesn't cause underflow when sprite is placed at origin.
+        // The padding + extrude offset ensures sprite_x/y are always >= extrude.
+        //
+        // With padding=1, extrude=2:
+        // - padded size = sprite + 2*padding + 2*extrude = sprite + 2 + 4 = sprite + 6
+        // - MaxRects places at rect.x=0, rect.y=0
+        // - sprite_x = 0 + 1 + 2 = 3
+        // - sprite_y = 0 + 1 + 2 = 3
+        // - When extruding, we need x >= extrude (3 >= 2) and y >= extrude (3 >= 2)
+        // - This is always true because sprite_x = rect.x + padding + extrude >= extrude
+
+        let mut sprite_img = image::RgbaImage::new(4, 4);
+        for pixel in sprite_img.pixels_mut() {
+            *pixel = Rgba([255, 0, 0, 255]);
+        }
+
+        let sprites = vec![SourceSprite {
+            path: std::path::PathBuf::from("test.png"),
+            name: "test".to_string(),
+            image: sprite_img,
+            trim_info: TrimInfo::untrimmed(4, 4),
+        }];
+
+        let builder = AtlasBuilder::new(256, 256).padding(1).extrude(2);
+
+        // This should not panic
+        let result = builder.build(sprites);
+        assert!(result.is_ok());
+
+        let atlases = result.unwrap();
+        assert_eq!(atlases.len(), 1);
+        assert_eq!(atlases[0].sprites.len(), 1);
+
+        // Verify sprite position accounts for padding + extrude
+        let packed = &atlases[0].sprites[0];
+        assert_eq!(packed.x, 3); // 0 + 1 (padding) + 2 (extrude)
+        assert_eq!(packed.y, 3);
+    }
+
+    #[test]
+    fn test_extrusion_zero_padding() {
+        // With padding=0, extrude=1:
+        // - sprite_x = 0 + 0 + 1 = 1
+        // - Extrusion needs x >= 1, which is satisfied (1 >= 1)
+
+        let mut sprite_img = image::RgbaImage::new(4, 4);
+        for pixel in sprite_img.pixels_mut() {
+            *pixel = Rgba([0, 255, 0, 255]);
+        }
+
+        let sprites = vec![SourceSprite {
+            path: std::path::PathBuf::from("test.png"),
+            name: "test".to_string(),
+            image: sprite_img,
+            trim_info: TrimInfo::untrimmed(4, 4),
+        }];
+
+        let builder = AtlasBuilder::new(256, 256).padding(0).extrude(1);
+
+        let result = builder.build(sprites);
+        assert!(result.is_ok());
+
+        let packed = &result.unwrap()[0].sprites[0];
+        assert_eq!(packed.x, 1); // 0 + 0 + 1
+        assert_eq!(packed.y, 1);
     }
 }
