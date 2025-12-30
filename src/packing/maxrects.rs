@@ -6,6 +6,7 @@ pub struct MaxRectsPacker {
     bin_width: u32,
     bin_height: u32,
     free_rects: Vec<Rect>,
+    placed_rects: Vec<Rect>,
 }
 
 impl MaxRectsPacker {
@@ -15,6 +16,7 @@ impl MaxRectsPacker {
             bin_width: width,
             bin_height: height,
             free_rects: vec![initial_rect],
+            placed_rects: Vec::new(),
         }
     }
 
@@ -23,6 +25,7 @@ impl MaxRectsPacker {
     pub fn insert(&mut self, width: u32, height: u32, heuristic: PackingHeuristic) -> Option<Rect> {
         let best_rect = self.find_position(width, height, heuristic)?;
         self.place_rect(best_rect);
+        self.placed_rects.push(best_rect);
         Some(best_rect)
     }
 
@@ -82,7 +85,63 @@ impl MaxRectsPacker {
                 let left = free_rect.x as i64;
                 (top, left)
             }
+            PackingHeuristic::ContactPoint => {
+                let contact = self.contact_score(free_rect.x, free_rect.y, width, height);
+                // Negate to prefer higher contact (lower score = better)
+                (-contact, 0)
+            }
+            PackingHeuristic::Best => {
+                // Best mode is handled at a higher level; fallback to BestShortSideFit
+                let leftover_h = (free_rect.width - width) as i64;
+                let leftover_v = (free_rect.height - height) as i64;
+                let short = leftover_h.min(leftover_v);
+                let long = leftover_h.max(leftover_v);
+                (short, long)
+            }
         }
+    }
+
+    /// Calculate contact score: how much perimeter touches placed rects or bin edges
+    fn contact_score(&self, x: u32, y: u32, width: u32, height: u32) -> i64 {
+        let mut score: i64 = 0;
+
+        // Contact with bin edges
+        if x == 0 {
+            score += height as i64;
+        }
+        if y == 0 {
+            score += width as i64;
+        }
+        if x + width == self.bin_width {
+            score += height as i64;
+        }
+        if y + height == self.bin_height {
+            score += width as i64;
+        }
+
+        // Contact with placed rectangles
+        for placed in &self.placed_rects {
+            // Check if horizontally adjacent (left or right edge touching)
+            if x == placed.x + placed.width || x + width == placed.x {
+                // Calculate vertical overlap
+                let overlap_start = y.max(placed.y);
+                let overlap_end = (y + height).min(placed.y + placed.height);
+                if overlap_end > overlap_start {
+                    score += (overlap_end - overlap_start) as i64;
+                }
+            }
+            // Check if vertically adjacent (top or bottom edge touching)
+            if y == placed.y + placed.height || y + height == placed.y {
+                // Calculate horizontal overlap
+                let overlap_start = x.max(placed.x);
+                let overlap_end = (x + width).min(placed.x + placed.width);
+                if overlap_end > overlap_start {
+                    score += (overlap_end - overlap_start) as i64;
+                }
+            }
+        }
+
+        score
     }
 
     fn place_rect(&mut self, rect: Rect) {
@@ -279,5 +338,43 @@ mod tests {
             "Expected occupancy ~1.0, got {}",
             occupancy
         );
+    }
+
+    #[test]
+    fn test_contact_point_heuristic() {
+        // ContactPoint should prefer positions that touch existing rects or bin edges.
+        // First rect goes to corner (max bin edge contact)
+        let mut packer = MaxRectsPacker::new(100, 100);
+        let r1 = packer
+            .insert(30, 30, PackingHeuristic::ContactPoint)
+            .unwrap();
+        assert_eq!((r1.x, r1.y), (0, 0), "First rect should be at origin for max edge contact");
+
+        // Second rect should prefer touching the first rect
+        let r2 = packer
+            .insert(20, 30, PackingHeuristic::ContactPoint)
+            .unwrap();
+        // Should be adjacent to r1 (either right of it or below it)
+        let touches_r1 = r2.x == r1.x + r1.width || r2.y == r1.y + r1.height;
+        assert!(touches_r1, "Second rect should touch first rect");
+    }
+
+    #[test]
+    fn test_contact_score_bin_edges() {
+        let packer = MaxRectsPacker::new(100, 100);
+        // Rectangle at origin touches left and top edges
+        let score = packer.contact_score(0, 0, 20, 30);
+        assert_eq!(score, 20 + 30, "Should count left edge (30) + top edge (20)");
+    }
+
+    #[test]
+    fn test_contact_score_placed_rects() {
+        let mut packer = MaxRectsPacker::new(100, 100);
+        packer.insert(30, 30, PackingHeuristic::BestShortSideFit).unwrap();
+
+        // Rectangle placed adjacent to the right of placed rect at (0,0,30,30)
+        let score = packer.contact_score(30, 0, 20, 30);
+        // Touches: top bin edge (20) + left side of new rect touches right of placed (30)
+        assert_eq!(score, 20 + 30);
     }
 }

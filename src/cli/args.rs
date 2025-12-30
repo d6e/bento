@@ -56,6 +56,19 @@ pub struct Args {
     /// Verbose output
     #[arg(short, long)]
     pub verbose: bool,
+
+    /// Pack mode: single (use one ordering) or best (try multiple orderings)
+    #[arg(long, value_enum, default_value = "single")]
+    pub pack_mode: PackMode,
+}
+
+#[derive(Debug, Clone, Copy, ValueEnum, Default, PartialEq, Eq)]
+pub enum PackMode {
+    /// Use sprites in input order
+    #[default]
+    Single,
+    /// Try multiple sprite orderings and pick the best result
+    Best,
 }
 
 #[derive(Debug, Clone, Copy, ValueEnum, Default)]
@@ -84,4 +97,10 @@ pub enum PackingHeuristic {
     /// Bottom Left - Tetris-style packing
     #[value(name = "bottom-left")]
     BottomLeft,
+    /// Contact Point - maximizes contact with placed rectangles and bin edges
+    #[value(name = "contact-point")]
+    ContactPoint,
+    /// Best - tries all heuristics and picks the most efficient result
+    #[value(name = "best")]
+    Best,
 }

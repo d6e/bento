@@ -1,3 +1,3 @@
 mod args;
 
-pub use args::{Args, OutputFormat, PackingHeuristic};
+pub use args::{Args, OutputFormat, PackMode, PackingHeuristic};

@@ -47,6 +47,7 @@ fn run() -> Result<()> {
         .heuristic(args.heuristic)
         .power_of_two(args.pot)
         .extrude(args.extrude)
+        .pack_mode(args.pack_mode)
         .build(sprites)?;
 
     // Save atlas images

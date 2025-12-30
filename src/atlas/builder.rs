@@ -1,12 +1,41 @@
 use anyhow::Result;
 use image::imageops;
-use log::info;
+use log::{debug, info};
 
 use super::Atlas;
-use crate::cli::PackingHeuristic;
+use crate::cli::{PackMode, PackingHeuristic};
 use crate::error::BentoError;
 use crate::packing::MaxRectsPacker;
 use crate::sprite::{PackedSprite, SourceSprite};
+
+/// All concrete heuristics to try when using "Best" mode
+const ALL_HEURISTICS: [PackingHeuristic; 5] = [
+    PackingHeuristic::BestShortSideFit,
+    PackingHeuristic::BestLongSideFit,
+    PackingHeuristic::BestAreaFit,
+    PackingHeuristic::BottomLeft,
+    PackingHeuristic::ContactPoint,
+];
+
+/// Sprite ordering strategies for pack-mode best
+#[derive(Debug, Clone, Copy)]
+enum SpriteOrdering {
+    /// Keep original input order
+    Original,
+    /// Sort by area (largest first)
+    ByArea,
+    /// Sort by perimeter (largest first)
+    ByPerimeter,
+    /// Sort by max dimension (largest first)
+    ByMaxDimension,
+}
+
+const ALL_ORDERINGS: [SpriteOrdering; 4] = [
+    SpriteOrdering::Original,
+    SpriteOrdering::ByArea,
+    SpriteOrdering::ByPerimeter,
+    SpriteOrdering::ByMaxDimension,
+];
 
 /// Configuration for atlas building
 pub struct AtlasBuilder {
@@ -16,6 +45,28 @@ pub struct AtlasBuilder {
     pub heuristic: PackingHeuristic,
     pub power_of_two: bool,
     pub extrude: u32,
+    pub pack_mode: PackMode,
+}
+
+/// Intermediate placement info for a single sprite
+struct SpritePlacement {
+    sprite_index: usize,
+    x: u32,
+    y: u32,
+    width: u32,
+    height: u32,
+    name: String,
+    trim_info: crate::sprite::TrimInfo,
+    atlas_index: usize,
+}
+
+/// Result of trying a packing heuristic
+struct PackingLayout {
+    placements: Vec<SpritePlacement>,
+    unpacked_indices: Vec<usize>,
+    max_x: u32,
+    max_y: u32,
+    occupancy: f64,
 }
 
 impl AtlasBuilder {
@@ -27,6 +78,7 @@ impl AtlasBuilder {
             heuristic: PackingHeuristic::BestShortSideFit,
             power_of_two: false,
             extrude: 0,
+            pack_mode: PackMode::Single,
         }
     }
 
@@ -47,6 +99,11 @@ impl AtlasBuilder {
 
     pub fn extrude(mut self, extrude: u32) -> Self {
         self.extrude = extrude;
+        self
+    }
+
+    pub fn pack_mode(mut self, pack_mode: PackMode) -> Self {
+        self.pack_mode = pack_mode;
         self
     }
 
@@ -97,69 +154,250 @@ impl AtlasBuilder {
         index: usize,
         sprites: Vec<SourceSprite>,
     ) -> Result<(Atlas, Vec<SourceSprite>)> {
+        // If Best heuristic mode, try all heuristics (and orderings if pack_mode is Best)
+        let (best_heuristic, best_layout) = if self.heuristic == PackingHeuristic::Best {
+            self.find_best_heuristic(&sprites, index)
+        } else {
+            // Use specified heuristic with original ordering (or try orderings if pack_mode is Best)
+            let orderings: &[SpriteOrdering] = if self.pack_mode == PackMode::Best {
+                &ALL_ORDERINGS
+            } else {
+                &[SpriteOrdering::Original]
+            };
+
+            let mut best: Option<PackingLayout> = None;
+            for &ordering in orderings {
+                let order = self.sorted_indices(&sprites, ordering);
+                let layout = self.try_pack(&sprites, &order, index, self.heuristic);
+
+                let is_better = match &best {
+                    None => true,
+                    Some(best_layout) => {
+                        let packed_count = layout.placements.len();
+                        let best_packed = best_layout.placements.len();
+                        packed_count > best_packed
+                            || (packed_count == best_packed && layout.occupancy > best_layout.occupancy)
+                    }
+                };
+
+                if is_better {
+                    best = Some(layout);
+                }
+            }
+
+            (self.heuristic, best.expect("at least one ordering should be tried"))
+        };
+
+        // Apply the best layout
+        self.apply_layout(index, sprites, best_heuristic, best_layout)
+    }
+
+    /// Try packing with a specific heuristic and ordering, return placement info without rendering
+    fn try_pack(
+        &self,
+        sprites: &[SourceSprite],
+        order: &[usize],
+        index: usize,
+        heuristic: PackingHeuristic,
+    ) -> PackingLayout {
         let mut packer = MaxRectsPacker::new(self.max_width, self.max_height);
-        let mut packed_sprites = Vec::new();
-        let mut unpacked = Vec::new();
+        let mut placements = Vec::new();
+        let mut unpacked_indices = Vec::new();
         let mut max_x = 0u32;
         let mut max_y = 0u32;
 
-        for sprite in sprites {
+        for &i in order {
+            let sprite = &sprites[i];
             let padded_w = sprite.width() + self.padding * 2 + self.extrude * 2;
             let padded_h = sprite.height() + self.padding * 2 + self.extrude * 2;
 
-            if let Some(rect) = packer.insert(padded_w, padded_h, self.heuristic) {
+            if let Some(rect) = packer.insert(padded_w, padded_h, heuristic) {
                 let sprite_x = rect.x + self.padding + self.extrude;
                 let sprite_y = rect.y + self.padding + self.extrude;
 
                 max_x = max_x.max(rect.x + padded_w);
                 max_y = max_y.max(rect.y + padded_h);
 
-                packed_sprites.push((
-                    PackedSprite {
-                        name: sprite.name.clone(),
-                        x: sprite_x,
-                        y: sprite_y,
-                        width: sprite.width(),
-                        height: sprite.height(),
-                        trim_info: sprite.trim_info,
-                        atlas_index: index,
-                    },
-                    sprite,
-                ));
+                placements.push(SpritePlacement {
+                    sprite_index: i,
+                    x: sprite_x,
+                    y: sprite_y,
+                    width: sprite.width(),
+                    height: sprite.height(),
+                    name: sprite.name.clone(),
+                    trim_info: sprite.trim_info,
+                    atlas_index: index,
+                });
             } else {
-                unpacked.push(sprite);
+                unpacked_indices.push(i);
             }
         }
 
-        // Determine final atlas dimensions
-        let (final_width, final_height) = if self.power_of_two {
-            (next_power_of_two(max_x), next_power_of_two(max_y))
+        PackingLayout {
+            placements,
+            unpacked_indices,
+            max_x,
+            max_y,
+            occupancy: packer.occupancy(),
+        }
+    }
+
+    /// Create sorted indices for a given ordering strategy
+    fn sorted_indices(&self, sprites: &[SourceSprite], ordering: SpriteOrdering) -> Vec<usize> {
+        let mut indices: Vec<usize> = (0..sprites.len()).collect();
+
+        match ordering {
+            SpriteOrdering::Original => {}
+            SpriteOrdering::ByArea => {
+                indices.sort_by(|&a, &b| {
+                    let area_a = sprites[a].width() as u64 * sprites[a].height() as u64;
+                    let area_b = sprites[b].width() as u64 * sprites[b].height() as u64;
+                    area_b.cmp(&area_a) // descending
+                });
+            }
+            SpriteOrdering::ByPerimeter => {
+                indices.sort_by(|&a, &b| {
+                    let perim_a = sprites[a].width() as u64 + sprites[a].height() as u64;
+                    let perim_b = sprites[b].width() as u64 + sprites[b].height() as u64;
+                    perim_b.cmp(&perim_a) // descending
+                });
+            }
+            SpriteOrdering::ByMaxDimension => {
+                indices.sort_by(|&a, &b| {
+                    let max_a = sprites[a].width().max(sprites[a].height());
+                    let max_b = sprites[b].width().max(sprites[b].height());
+                    max_b.cmp(&max_a) // descending
+                });
+            }
+        }
+
+        indices
+    }
+
+    /// Find the best heuristic (and ordering if pack_mode is Best)
+    fn find_best_heuristic(
+        &self,
+        sprites: &[SourceSprite],
+        index: usize,
+    ) -> (PackingHeuristic, PackingLayout) {
+        let mut best: Option<(PackingHeuristic, PackingLayout)> = None;
+
+        // Determine which orderings to try
+        let orderings: &[SpriteOrdering] = if self.pack_mode == PackMode::Best {
+            &ALL_ORDERINGS
         } else {
-            (max_x, max_y)
+            &[SpriteOrdering::Original]
+        };
+
+        for &ordering in orderings {
+            let order = self.sorted_indices(sprites, ordering);
+
+            for &heuristic in &ALL_HEURISTICS {
+                let layout = self.try_pack(sprites, &order, index, heuristic);
+
+                let is_better = match &best {
+                    None => true,
+                    Some((_, best_layout)) => {
+                        // Prefer: more sprites packed, then higher occupancy
+                        let packed_count = layout.placements.len();
+                        let best_packed = best_layout.placements.len();
+
+                        if packed_count > best_packed {
+                            true
+                        } else if packed_count == best_packed {
+                            layout.occupancy > best_layout.occupancy
+                        } else {
+                            false
+                        }
+                    }
+                };
+
+                if is_better {
+                    debug!(
+                        "Ordering {:?} + Heuristic {:?}: packed {}/{}, occupancy {:.1}%",
+                        ordering,
+                        heuristic,
+                        layout.placements.len(),
+                        sprites.len(),
+                        layout.occupancy * 100.0
+                    );
+                    best = Some((heuristic, layout));
+                }
+            }
+        }
+
+        best.expect("at least one heuristic should be tried")
+    }
+
+    /// Apply a computed layout to produce the final atlas
+    fn apply_layout(
+        &self,
+        index: usize,
+        sprites: Vec<SourceSprite>,
+        heuristic: PackingHeuristic,
+        layout: PackingLayout,
+    ) -> Result<(Atlas, Vec<SourceSprite>)> {
+        let (final_width, final_height) = if self.power_of_two {
+            (next_power_of_two(layout.max_x), next_power_of_two(layout.max_y))
+        } else {
+            (layout.max_x, layout.max_y)
         };
 
         let mut atlas = Atlas::new(index, final_width, final_height);
 
-        // Render sprites to atlas
-        for (packed, source) in packed_sprites {
-            // Handle extrusion
+        // Convert sprites vec to allow indexed access
+        let mut sprites: Vec<Option<SourceSprite>> = sprites.into_iter().map(Some).collect();
+        let mut unpacked = Vec::new();
+
+        // Render packed sprites
+        for placement in layout.placements {
+            let source = sprites[placement.sprite_index]
+                .take()
+                .expect("sprite should exist");
+
             if self.extrude > 0 {
-                self.extrude_sprite(&mut atlas.image, &source, packed.x, packed.y);
+                self.extrude_sprite(&mut atlas.image, &source, placement.x, placement.y);
             }
 
-            // Copy sprite image
-            imageops::overlay(&mut atlas.image, &source.image, packed.x as i64, packed.y as i64);
+            imageops::overlay(
+                &mut atlas.image,
+                &source.image,
+                placement.x as i64,
+                placement.y as i64,
+            );
 
-            atlas.sprites.push(packed);
+            atlas.sprites.push(PackedSprite {
+                name: placement.name,
+                x: placement.x,
+                y: placement.y,
+                width: placement.width,
+                height: placement.height,
+                trim_info: placement.trim_info,
+                atlas_index: placement.atlas_index,
+            });
         }
 
+        // Collect unpacked sprites
+        for idx in layout.unpacked_indices {
+            if let Some(sprite) = sprites[idx].take() {
+                unpacked.push(sprite);
+            }
+        }
+
+        let heuristic_info = if self.heuristic == PackingHeuristic::Best {
+            format!(" (best: {:?})", heuristic)
+        } else {
+            String::new()
+        };
+
         info!(
-            "Atlas {}: {}x{} with {} sprites ({:.1}% efficiency)",
+            "Atlas {}: {}x{} with {} sprites ({:.1}% efficiency){}",
             index,
             final_width,
             final_height,
             atlas.sprites.len(),
-            packer.occupancy() * 100.0
+            layout.occupancy * 100.0,
+            heuristic_info,
         );
 
         Ok((atlas, unpacked))
@@ -321,5 +559,120 @@ mod tests {
         let packed = &result.unwrap()[0].sprites[0];
         assert_eq!(packed.x, 1); // 0 + 0 + 1
         assert_eq!(packed.y, 1);
+    }
+
+    #[test]
+    fn test_best_heuristic_packs_all_sprites() {
+        // Best mode should try all heuristics and pick the best result.
+        // Create sprites that should all fit in one atlas.
+        let mut sprites = Vec::new();
+        for i in 0..4 {
+            let mut img = image::RgbaImage::new(20, 20);
+            for pixel in img.pixels_mut() {
+                *pixel = Rgba([255, 0, 0, 255]);
+            }
+            sprites.push(SourceSprite {
+                path: std::path::PathBuf::from(format!("sprite_{}.png", i)),
+                name: format!("sprite_{}", i),
+                image: img,
+                trim_info: TrimInfo::untrimmed(20, 20),
+            });
+        }
+
+        let builder = AtlasBuilder::new(100, 100)
+            .padding(1)
+            .heuristic(PackingHeuristic::Best);
+
+        let result = builder.build(sprites);
+        assert!(result.is_ok());
+
+        let atlases = result.unwrap();
+        assert_eq!(atlases.len(), 1, "All sprites should fit in one atlas");
+        assert_eq!(atlases[0].sprites.len(), 4, "All 4 sprites should be packed");
+    }
+
+    #[test]
+    fn test_best_heuristic_produces_valid_result() {
+        // Best mode should produce a result at least as good as any single heuristic.
+        let create_sprites = || {
+            let mut sprites = Vec::new();
+            let sizes = [(30, 20), (25, 15), (40, 10), (15, 35), (20, 20)];
+            for (i, (w, h)) in sizes.iter().enumerate() {
+                let img = image::RgbaImage::new(*w, *h);
+                sprites.push(SourceSprite {
+                    path: std::path::PathBuf::from(format!("sprite_{}.png", i)),
+                    name: format!("sprite_{}", i),
+                    image: img,
+                    trim_info: TrimInfo::untrimmed(*w, *h),
+                });
+            }
+            sprites
+        };
+
+        // Pack with Best mode
+        let best_builder = AtlasBuilder::new(100, 100)
+            .padding(0)
+            .heuristic(PackingHeuristic::Best);
+        let best_result = best_builder.build(create_sprites()).unwrap();
+        let best_packed = best_result[0].sprites.len();
+
+        // Best should pack at least as many as any single heuristic
+        for heuristic in ALL_HEURISTICS {
+            let builder = AtlasBuilder::new(100, 100).padding(0).heuristic(heuristic);
+            let result = builder.build(create_sprites()).unwrap();
+            let packed = result[0].sprites.len();
+
+            assert!(
+                best_packed >= packed,
+                "Best mode ({} packed) should be >= {:?} ({} packed)",
+                best_packed,
+                heuristic,
+                packed
+            );
+        }
+    }
+
+    #[test]
+    fn test_pack_mode_best_with_orderings() {
+        // pack_mode Best should try multiple orderings and potentially get better results.
+        let create_sprites = || {
+            let mut sprites = Vec::new();
+            // Create sprites with varying sizes where ordering matters
+            let sizes = [(10, 50), (50, 10), (30, 30), (20, 40), (40, 20)];
+            for (i, (w, h)) in sizes.iter().enumerate() {
+                let img = image::RgbaImage::new(*w, *h);
+                sprites.push(SourceSprite {
+                    path: std::path::PathBuf::from(format!("sprite_{}.png", i)),
+                    name: format!("sprite_{}", i),
+                    image: img,
+                    trim_info: TrimInfo::untrimmed(*w, *h),
+                });
+            }
+            sprites
+        };
+
+        // Pack with pack_mode Best (tries multiple orderings)
+        let best_builder = AtlasBuilder::new(100, 100)
+            .padding(0)
+            .heuristic(PackingHeuristic::BestShortSideFit)
+            .pack_mode(PackMode::Best);
+        let best_result = best_builder.build(create_sprites()).unwrap();
+        let best_packed = best_result[0].sprites.len();
+
+        // Pack with pack_mode Single (original ordering only)
+        let single_builder = AtlasBuilder::new(100, 100)
+            .padding(0)
+            .heuristic(PackingHeuristic::BestShortSideFit)
+            .pack_mode(PackMode::Single);
+        let single_result = single_builder.build(create_sprites()).unwrap();
+        let single_packed = single_result[0].sprites.len();
+
+        // Best pack mode should be at least as good as single
+        assert!(
+            best_packed >= single_packed,
+            "pack_mode Best ({}) should pack >= pack_mode Single ({})",
+            best_packed,
+            single_packed
+        );
     }
 }
