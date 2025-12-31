@@ -6,7 +6,7 @@ use anyhow::Result;
 use image::{DynamicImage, ImageFormat, RgbImage};
 
 use crate::atlas::Atlas;
-use crate::cli::{CompressionLevel, OutputFormat};
+use crate::cli::CompressionLevel;
 use crate::error::BentoError;
 
 /// Save atlas image as PNG, optionally with compression
@@ -59,12 +59,3 @@ pub fn save_atlas_image(
     Ok(())
 }
 
-impl OutputFormat {
-    pub fn should_write_godot(&self) -> bool {
-        matches!(self, OutputFormat::Godot | OutputFormat::Both)
-    }
-
-    pub fn should_write_json(&self) -> bool {
-        matches!(self, OutputFormat::Json | OutputFormat::Both)
-    }
-}

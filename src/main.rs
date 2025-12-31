@@ -5,7 +5,7 @@ use clap::Parser;
 use log::{error, info};
 
 use bento::atlas::AtlasBuilder;
-use bento::cli::Args;
+use bento::cli::{CliArgs, Command};
 use bento::output::{save_atlas_image, write_godot_resources, write_json};
 use bento::sprite::load_sprites;
 
@@ -17,7 +17,12 @@ fn main() {
 }
 
 fn run() -> Result<()> {
-    let args = Args::parse();
+    let cli = CliArgs::parse();
+
+    // Extract common args from subcommand
+    let args = match &cli.command {
+        Command::Json(args) | Command::Godot(args) => args,
+    };
 
     // Initialize logging
     env_logger::Builder::new()
@@ -57,18 +62,19 @@ fn run() -> Result<()> {
         info!("Saved {}", path.display());
     }
 
-    // Write output formats
-    if args.format.should_write_godot() {
-        write_godot_resources(&atlases, &args.output, &args.name, None)?;
-        info!(
-            "Generated {} Godot .tres files",
-            atlases.iter().map(|a| a.sprites.len()).sum::<usize>()
-        );
-    }
-
-    if args.format.should_write_json() {
-        write_json(&atlases, &args.output, &args.name)?;
-        info!("Generated {}.json", args.name);
+    // Write format-specific output
+    match &cli.command {
+        Command::Json(_) => {
+            write_json(&atlases, &args.output, &args.name)?;
+            info!("Generated {}.json", args.name);
+        }
+        Command::Godot(_) => {
+            write_godot_resources(&atlases, &args.output, &args.name, None)?;
+            info!(
+                "Generated {} Godot .tres files",
+                atlases.iter().map(|a| a.sprites.len()).sum::<usize>()
+            );
+        }
     }
 
     info!("Done!");

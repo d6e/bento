@@ -1,11 +1,25 @@
-use clap::{Parser, ValueEnum};
+use clap::{Args, Parser, Subcommand, ValueEnum};
 use std::path::PathBuf;
 
 #[derive(Parser, Debug)]
 #[command(name = "bento")]
-#[command(version, about = "Texture packer for Godot 4.x", long_about = None)]
-pub struct Args {
-    /// Input directory or files containing sprites
+#[command(version, about = "Sprite atlas packer", long_about = None)]
+pub struct CliArgs {
+    #[command(subcommand)]
+    pub command: Command,
+}
+
+#[derive(Subcommand, Debug, Clone)]
+pub enum Command {
+    /// Output JSON metadata (recommended for Godot)
+    Json(CommonArgs),
+    /// Output individual Godot .tres files
+    Godot(CommonArgs),
+}
+
+#[derive(Args, Debug, Clone)]
+pub struct CommonArgs {
+    /// Input image files
     #[arg(required = true)]
     pub input: Vec<PathBuf>,
 
@@ -13,7 +27,7 @@ pub struct Args {
     #[arg(short, long, default_value = ".")]
     pub output: PathBuf,
 
-    /// Base name for output files (atlas_0.png, atlas_0.tres, etc.)
+    /// Base name for output files (atlas_0.png, atlas.json, etc.)
     #[arg(short = 'n', long, default_value = "atlas")]
     pub name: String,
 
@@ -28,10 +42,6 @@ pub struct Args {
     /// Padding between sprites in pixels
     #[arg(short, long, default_value = "1")]
     pub padding: u32,
-
-    /// Output format(s) to generate
-    #[arg(short, long, value_enum, default_value = "both")]
-    pub format: OutputFormat,
 
     /// Disable sprite trimming (remove transparent borders)
     #[arg(long)]
@@ -79,16 +89,6 @@ pub enum PackMode {
     Best,
 }
 
-#[derive(Debug, Clone, Copy, ValueEnum, Default)]
-pub enum OutputFormat {
-    /// Godot .tres + PNG only
-    Godot,
-    /// JSON + PNG only
-    Json,
-    /// Both Godot and JSON output
-    #[default]
-    Both,
-}
 
 /// PNG compression level (0-6 or max)
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
