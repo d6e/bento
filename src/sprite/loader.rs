@@ -11,7 +11,11 @@ use crate::error::BentoError;
 const SUPPORTED_EXTENSIONS: &[&str] = &["png", "jpg", "jpeg", "gif", "bmp", "webp"];
 
 /// Load sprites from input paths (files or directories)
-pub fn load_sprites(inputs: &[impl AsRef<Path>], trim: bool) -> Result<Vec<SourceSprite>> {
+pub fn load_sprites(
+    inputs: &[impl AsRef<Path>],
+    trim: bool,
+    trim_margin: u32,
+) -> Result<Vec<SourceSprite>> {
     let image_paths = collect_image_paths(inputs)?;
 
     if image_paths.is_empty() {
@@ -22,7 +26,7 @@ pub fn load_sprites(inputs: &[impl AsRef<Path>], trim: bool) -> Result<Vec<Sourc
 
     let sprites: Result<Vec<_>> = image_paths
         .par_iter()
-        .map(|path| load_single_sprite(path, trim))
+        .map(|path| load_single_sprite(path, trim, trim_margin))
         .collect();
 
     let mut sprites = sprites?;
@@ -79,7 +83,7 @@ fn is_supported_image(path: &Path) -> bool {
         .unwrap_or(false)
 }
 
-fn load_single_sprite(path: &Path, trim: bool) -> Result<SourceSprite> {
+fn load_single_sprite(path: &Path, trim: bool, trim_margin: u32) -> Result<SourceSprite> {
     let img = ImageReader::open(path)
         .map_err(|e| BentoError::ImageLoad {
             path: path.to_path_buf(),
@@ -99,7 +103,7 @@ fn load_single_sprite(path: &Path, trim: bool) -> Result<SourceSprite> {
         .to_string();
 
     let (image, trim_info) = if trim {
-        trim_sprite(&img)
+        trim_sprite(&img, trim_margin)
     } else {
         let (w, h) = img.dimensions();
         (img, TrimInfo::untrimmed(w, h))

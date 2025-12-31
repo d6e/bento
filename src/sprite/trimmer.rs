@@ -2,8 +2,8 @@ use image::RgbaImage;
 
 use super::TrimInfo;
 
-/// Trim transparent borders from an image
-pub fn trim_sprite(image: &RgbaImage) -> (RgbaImage, TrimInfo) {
+/// Trim transparent borders from an image, optionally keeping a margin
+pub fn trim_sprite(image: &RgbaImage, margin: u32) -> (RgbaImage, TrimInfo) {
     let (width, height) = image.dimensions();
 
     if width == 0 || height == 0 {
@@ -53,6 +53,12 @@ pub fn trim_sprite(image: &RgbaImage) -> (RgbaImage, TrimInfo) {
         );
     }
 
+    // Expand bounding box by margin, clamped to image bounds
+    let min_x = min_x.saturating_sub(margin);
+    let min_y = min_y.saturating_sub(margin);
+    let max_x = (max_x + margin).min(width - 1);
+    let max_y = (max_y + margin).min(height - 1);
+
     let trimmed_width = max_x - min_x + 1;
     let trimmed_height = max_y - min_y + 1;
 
@@ -83,7 +89,7 @@ mod tests {
             *pixel = Rgba([255, 0, 0, 255]);
         }
 
-        let (trimmed, info) = trim_sprite(&img);
+        let (trimmed, info) = trim_sprite(&img, 0);
 
         assert_eq!(trimmed.width(), 10);
         assert_eq!(trimmed.height(), 10);
@@ -102,7 +108,7 @@ mod tests {
             }
         }
 
-        let (trimmed, info) = trim_sprite(&img);
+        let (trimmed, info) = trim_sprite(&img, 0);
 
         assert_eq!(trimmed.width(), 4);
         assert_eq!(trimmed.height(), 4);
@@ -117,12 +123,47 @@ mod tests {
     fn test_trim_fully_transparent() {
         let img = RgbaImage::new(10, 10);
 
-        let (trimmed, info) = trim_sprite(&img);
+        let (trimmed, info) = trim_sprite(&img, 0);
 
         assert_eq!(trimmed.width(), 1);
         assert_eq!(trimmed.height(), 1);
         assert_eq!(info.source_width, 10);
         assert_eq!(info.source_height, 10);
+    }
+
+    #[test]
+    fn test_trim_with_margin() {
+        let mut img = RgbaImage::new(10, 10);
+        // Fill center 4x4 with opaque pixels (x: 2-5, y: 3-6)
+        for y in 3..7 {
+            for x in 2..6 {
+                img.put_pixel(x, y, Rgba([255, 0, 0, 255]));
+            }
+        }
+
+        // With margin=1, should expand bounding box by 1 on each side
+        let (trimmed, info) = trim_sprite(&img, 1);
+
+        assert_eq!(trimmed.width(), 6); // 4 + 2
+        assert_eq!(trimmed.height(), 6); // 4 + 2
+        assert_eq!(info.offset_x, 1); // 2 - 1
+        assert_eq!(info.offset_y, 2); // 3 - 1
+    }
+
+    #[test]
+    fn test_trim_margin_clamped_to_bounds() {
+        let mut img = RgbaImage::new(10, 10);
+        // Put opaque pixels at edges
+        img.put_pixel(0, 0, Rgba([255, 0, 0, 255]));
+        img.put_pixel(9, 9, Rgba([255, 0, 0, 255]));
+
+        // Margin of 5 should be clamped to image bounds
+        let (trimmed, info) = trim_sprite(&img, 5);
+
+        assert_eq!(trimmed.width(), 10);
+        assert_eq!(trimmed.height(), 10);
+        assert_eq!(info.offset_x, 0);
+        assert_eq!(info.offset_y, 0);
     }
 
     #[test]

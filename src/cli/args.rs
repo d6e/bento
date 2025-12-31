@@ -37,6 +37,10 @@ pub struct Args {
     #[arg(long)]
     pub no_trim: bool,
 
+    /// Keep N pixels of transparent border after trimming
+    #[arg(long, default_value = "0")]
+    pub trim_margin: u32,
+
     /// Packing heuristic to use
     #[arg(long, value_enum, default_value = "best-short-side-fit")]
     pub heuristic: PackingHeuristic,
