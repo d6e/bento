@@ -11,6 +11,7 @@ A fast texture packer for Godot 4.x with automatic sprite trimming and multiple 
 - **Edge extrusion** prevents texture bleeding at sprite boundaries
 - **Power-of-two** option for GPU compatibility
 - **Multi-atlas support** automatically splits sprites across multiple atlases when needed
+- **PNG compression** with oxipng for smaller file sizes
 
 ## Installation
 
@@ -60,6 +61,14 @@ Output only Godot resources (no JSON):
 bento sprites/ -o output/ --format godot
 ```
 
+Compress PNG output for smaller file sizes:
+
+```bash
+bento sprites/ -o output/ --compress        # default level (2)
+bento sprites/ -o output/ --compress 6      # higher compression
+bento sprites/ -o output/ --compress max    # maximum compression (slower)
+```
+
 ### Options
 
 | Option | Default | Description |
@@ -76,6 +85,7 @@ bento sprites/ -o output/ --format godot
 | `--pot` | off | Force power-of-two dimensions |
 | `--extrude` | `0` | Extrude sprite edges by N pixels |
 | `--opaque` | off | Output RGB instead of RGBA |
+| `--compress` | off | PNG compression level (0-6 or `max`) |
 | `-v, --verbose` | off | Verbose output |
 
 ### Packing Heuristics

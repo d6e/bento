@@ -53,7 +53,7 @@ fn run() -> Result<()> {
     // Save atlas images
     for atlas in &atlases {
         let path = args.output.join(format!("{}_{}.png", args.name, atlas.index));
-        save_atlas_image(atlas, &path, args.opaque)?;
+        save_atlas_image(atlas, &path, args.opaque, args.compress)?;
         info!("Saved {}", path.display());
     }
 

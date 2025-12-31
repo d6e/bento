@@ -33,6 +33,9 @@ pub enum BentoError {
         source: std::io::Error,
     },
 
+    #[error("Failed to compress PNG '{path}': {message}")]
+    PngCompress { path: PathBuf, message: String },
+
     #[error("Input path does not exist: {0}")]
     InputNotFound(PathBuf),
 }
