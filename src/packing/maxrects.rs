@@ -198,6 +198,7 @@ impl MaxRectsPacker {
 
         self.free_rects.extend(new_rects);
         self.prune_free_rects();
+        self.merge_free_rects();
     }
 
     fn prune_free_rects(&mut self) {
@@ -218,6 +219,60 @@ impl MaxRectsPacker {
             }
             i += 1;
         }
+    }
+
+    /// Merge adjacent free rectangles that can form a larger rectangle.
+    /// This reduces fragmentation and can improve packing efficiency.
+    fn merge_free_rects(&mut self) {
+        let mut merged = true;
+
+        while merged {
+            merged = false;
+            let mut i = 0;
+
+            while i < self.free_rects.len() {
+                let mut j = i + 1;
+
+                while j < self.free_rects.len() {
+                    if let Some(combined) =
+                        Self::try_merge(&self.free_rects[i], &self.free_rects[j])
+                    {
+                        self.free_rects[i] = combined;
+                        self.free_rects.swap_remove(j);
+                        merged = true;
+                    } else {
+                        j += 1;
+                    }
+                }
+                i += 1;
+            }
+        }
+    }
+
+    /// Try to merge two rectangles if they are adjacent and form a larger rectangle.
+    /// Returns Some(combined) if merge is possible, None otherwise.
+    fn try_merge(a: &Rect, b: &Rect) -> Option<Rect> {
+        // Horizontal adjacency: same y, same height, touching x edges
+        if a.y == b.y && a.height == b.height {
+            if a.x + a.width == b.x {
+                return Some(Rect::new(a.x, a.y, a.width + b.width, a.height));
+            }
+            if b.x + b.width == a.x {
+                return Some(Rect::new(b.x, b.y, a.width + b.width, a.height));
+            }
+        }
+
+        // Vertical adjacency: same x, same width, touching y edges
+        if a.x == b.x && a.width == b.width {
+            if a.y + a.height == b.y {
+                return Some(Rect::new(a.x, a.y, a.width, a.height + b.height));
+            }
+            if b.y + b.height == a.y {
+                return Some(Rect::new(a.x, b.y, a.width, a.height + b.height));
+            }
+        }
+
+        None
     }
 
     /// Get packing efficiency as a ratio (0.0 to 1.0)
@@ -376,5 +431,44 @@ mod tests {
         let score = packer.contact_score(30, 0, 20, 30);
         // Touches: top bin edge (20) + left side of new rect touches right of placed (30)
         assert_eq!(score, 20 + 30);
+    }
+
+    #[test]
+    fn test_merge_horizontal() {
+        // Two rectangles with same y and height, adjacent x
+        let a = Rect::new(0, 0, 50, 100);
+        let b = Rect::new(50, 0, 50, 100);
+        let merged = MaxRectsPacker::try_merge(&a, &b);
+        assert_eq!(merged, Some(Rect::new(0, 0, 100, 100)));
+
+        // Reverse order
+        let merged_rev = MaxRectsPacker::try_merge(&b, &a);
+        assert_eq!(merged_rev, Some(Rect::new(0, 0, 100, 100)));
+    }
+
+    #[test]
+    fn test_merge_vertical() {
+        // Two rectangles with same x and width, adjacent y
+        let a = Rect::new(0, 0, 100, 50);
+        let b = Rect::new(0, 50, 100, 50);
+        let merged = MaxRectsPacker::try_merge(&a, &b);
+        assert_eq!(merged, Some(Rect::new(0, 0, 100, 100)));
+
+        // Reverse order
+        let merged_rev = MaxRectsPacker::try_merge(&b, &a);
+        assert_eq!(merged_rev, Some(Rect::new(0, 0, 100, 100)));
+    }
+
+    #[test]
+    fn test_merge_not_adjacent() {
+        // Different heights - can't merge horizontally
+        let a = Rect::new(0, 0, 50, 100);
+        let b = Rect::new(50, 0, 50, 80);
+        assert_eq!(MaxRectsPacker::try_merge(&a, &b), None);
+
+        // Gap between - can't merge
+        let c = Rect::new(0, 0, 50, 100);
+        let d = Rect::new(60, 0, 50, 100);
+        assert_eq!(MaxRectsPacker::try_merge(&c, &d), None);
     }
 }

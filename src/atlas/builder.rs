@@ -28,13 +28,25 @@ enum SpriteOrdering {
     ByPerimeter,
     /// Sort by max dimension (largest first)
     ByMaxDimension,
+    /// Sort by width (widest first)
+    ByWidth,
+    /// Sort by height (tallest first)
+    ByHeight,
+    /// Sort by aspect ratio extremity (furthest from 1:1 first)
+    ByWidthHeightRatio,
+    /// Sort by diagonal length (largest first)
+    ByDiagonal,
 }
 
-const ALL_ORDERINGS: [SpriteOrdering; 4] = [
+const ALL_ORDERINGS: [SpriteOrdering; 8] = [
     SpriteOrdering::Original,
     SpriteOrdering::ByArea,
     SpriteOrdering::ByPerimeter,
     SpriteOrdering::ByMaxDimension,
+    SpriteOrdering::ByWidth,
+    SpriteOrdering::ByHeight,
+    SpriteOrdering::ByWidthHeightRatio,
+    SpriteOrdering::ByDiagonal,
 ];
 
 /// Configuration for atlas building
@@ -71,12 +83,25 @@ struct PackingLayout {
 
 impl PackingLayout {
     /// Returns true if this layout is better than another.
-    /// Prefers: more sprites packed, then higher occupancy as tiebreaker.
+    /// Priority: 1) more sprites packed, 2) smaller atlas area, 3) higher occupancy.
     fn is_better_than(&self, other: &PackingLayout) -> bool {
         let self_packed = self.placements.len();
         let other_packed = other.placements.len();
-        self_packed > other_packed
-            || (self_packed == other_packed && self.occupancy > other.occupancy)
+
+        if self_packed != other_packed {
+            return self_packed > other_packed;
+        }
+
+        // Same sprite count - prefer smaller atlas area
+        let self_area = self.max_x as u64 * self.max_y as u64;
+        let other_area = other.max_x as u64 * other.max_y as u64;
+
+        if self_area != other_area {
+            return self_area < other_area;
+        }
+
+        // Same area - prefer higher occupancy (denser packing)
+        self.occupancy > other.occupancy
     }
 }
 
@@ -271,6 +296,41 @@ impl AtlasBuilder {
                     let max_a = sprites[a].width().max(sprites[a].height());
                     let max_b = sprites[b].width().max(sprites[b].height());
                     max_b.cmp(&max_a) // descending
+                });
+            }
+            SpriteOrdering::ByWidth => {
+                indices.sort_by(|&a, &b| {
+                    sprites[b].width().cmp(&sprites[a].width()) // descending
+                });
+            }
+            SpriteOrdering::ByHeight => {
+                indices.sort_by(|&a, &b| {
+                    sprites[b].height().cmp(&sprites[a].height()) // descending
+                });
+            }
+            SpriteOrdering::ByWidthHeightRatio => {
+                // Sort by how far the aspect ratio is from 1:1 (most extreme first)
+                indices.sort_by(|&a, &b| {
+                    let w_a = sprites[a].width().max(1) as f64;
+                    let h_a = sprites[a].height().max(1) as f64;
+                    let w_b = sprites[b].width().max(1) as f64;
+                    let h_b = sprites[b].height().max(1) as f64;
+                    // Ratio is max/min, so always >= 1.0. Higher = more extreme.
+                    let ratio_a = w_a.max(h_a) / w_a.min(h_a);
+                    let ratio_b = w_b.max(h_b) / w_b.min(h_b);
+                    ratio_b
+                        .partial_cmp(&ratio_a)
+                        .unwrap_or(std::cmp::Ordering::Equal) // descending
+                });
+            }
+            SpriteOrdering::ByDiagonal => {
+                // Sort by diagonal length (sqrt(w^2 + h^2)), largest first
+                indices.sort_by(|&a, &b| {
+                    let diag_sq_a =
+                        (sprites[a].width() as u64).pow(2) + (sprites[a].height() as u64).pow(2);
+                    let diag_sq_b =
+                        (sprites[b].width() as u64).pow(2) + (sprites[b].height() as u64).pow(2);
+                    diag_sq_b.cmp(&diag_sq_a) // descending (compare squared to avoid sqrt)
                 });
             }
         }
