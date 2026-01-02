@@ -11,6 +11,7 @@ A fast sprite atlas packer with automatic trimming and multiple packing heuristi
 - **Edge extrusion** prevents texture bleeding at sprite boundaries
 - **Power-of-two** option for GPU compatibility
 - **Multi-atlas support** automatically splits sprites across multiple atlases when needed
+- **Sprite resizing** by width or scale factor
 - **PNG compression** with oxipng for smaller file sizes
 - **GUI mode** for interactive atlas packing with real-time preview
 
@@ -53,6 +54,7 @@ Bento uses subcommands to select the output format:
 ```bash
 bento json sprites/*.png -o output/   # JSON metadata (recommended)
 bento godot sprites/*.png -o output/  # Individual Godot .tres files
+bento gui                             # Launch GUI (requires --features gui)
 ```
 
 ### Examples
@@ -81,6 +83,18 @@ Add 1px edge extrusion to prevent texture bleeding:
 bento json sprites/*.png -o output/ --extrude 1
 ```
 
+Resize sprites to half size:
+
+```bash
+bento json sprites/*.png -o output/ --resize-scale 0.5
+```
+
+Resize sprites to a specific width (preserves aspect ratio):
+
+```bash
+bento json sprites/*.png -o output/ --resize-width 64
+```
+
 Output individual Godot .tres files:
 
 ```bash
@@ -106,6 +120,8 @@ bento json sprites/*.png -o output/ --compress max    # maximum compression (slo
 | `-p, --padding` | `1` | Padding between sprites |
 | `--no-trim` | off | Disable transparent border trimming |
 | `--trim-margin` | `0` | Keep N pixels of transparent border after trimming |
+| `--resize-width` | - | Resize sprites to target width (preserves aspect ratio) |
+| `--resize-scale` | - | Resize sprites by scale factor (e.g., 0.5 for half size) |
 | `--heuristic` | `best-short-side-fit` | Packing heuristic (see below) |
 | `--pack-mode` | `single` | Ordering mode: `single` or `best` |
 | `--pot` | off | Force power-of-two dimensions |
