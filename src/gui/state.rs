@@ -172,6 +172,9 @@ pub struct RuntimeState {
 
     // Persisted UI state
     pub last_input_dir: Option<PathBuf>,
+
+    // Sprite list filter
+    pub sprite_filter: String,
 }
 
 impl Default for RuntimeState {
@@ -194,6 +197,8 @@ impl Default for RuntimeState {
             pending_repack_at: None,
 
             last_input_dir: None,
+
+            sprite_filter: String::new(),
         }
     }
 }

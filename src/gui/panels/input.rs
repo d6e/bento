@@ -54,6 +54,15 @@ pub fn input_panel(ui: &mut egui::Ui, state: &mut AppState) {
             }
             ui.label(format!("{} file(s)", state.config.input_paths.len()));
         });
+
+        // Filter input
+        ui.horizontal(|ui| {
+            ui.add(
+                egui::TextEdit::singleline(&mut state.runtime.sprite_filter)
+                    .hint_text("Filter sprites...")
+                    .desired_width(ui.available_width() - 8.0),
+            );
+        });
     }
 
     ui.add_space(4.0);
@@ -63,11 +72,39 @@ pub fn input_panel(ui: &mut egui::Ui, state: &mut AppState) {
     egui::ScrollArea::vertical()
         .max_height(available_height.max(100.0))
         .show(ui, |ui| {
+            // Filter paths, keeping original indices for removal
+            let filter_lower = state.runtime.sprite_filter.to_lowercase();
+            let filtered: Vec<(usize, &std::path::PathBuf)> = state
+                .config
+                .input_paths
+                .iter()
+                .enumerate()
+                .filter(|(_, path)| {
+                    if filter_lower.is_empty() {
+                        return true;
+                    }
+                    let filename = path
+                        .file_name()
+                        .map(|n| n.to_string_lossy().to_lowercase())
+                        .unwrap_or_default();
+                    filename.contains(&filter_lower)
+                })
+                .collect();
+
+            // Show filtered count if filtering
+            if !filter_lower.is_empty() {
+                ui.label(format!(
+                    "Showing {} of {}",
+                    filtered.len(),
+                    state.config.input_paths.len()
+                ));
+            }
+
             let mut to_remove = None;
-            for (i, path) in state.config.input_paths.iter().enumerate() {
+            for (original_idx, path) in filtered {
                 ui.horizontal(|ui| {
                     if ui.small_button("x").clicked() {
-                        to_remove = Some(i);
+                        to_remove = Some(original_idx);
                     }
 
                     // Display filename only
