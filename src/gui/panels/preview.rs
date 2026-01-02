@@ -45,14 +45,21 @@ pub fn preview_panel(ui: &mut egui::Ui, state: &mut AppState) {
     let selected = state.runtime.selected_atlas.min(atlases.len() - 1);
     let atlas = &atlases[selected];
 
-    // Stats line with occupancy
+    // Stats line with occupancy and file size
+    let file_size = state
+        .runtime
+        .atlas_png_sizes
+        .get(selected)
+        .copied()
+        .unwrap_or(0);
     ui.horizontal(|ui| {
         ui.label(format!(
-            "{}x{} | {} sprites | {:.1}% occupancy",
+            "{}x{} | {} sprites | {:.1}% occupancy | {}",
             atlas.width,
             atlas.height,
             atlas.sprites.len(),
-            atlas.occupancy * 100.0
+            atlas.occupancy * 100.0,
+            format_file_size(file_size)
         ));
 
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
@@ -227,5 +234,19 @@ fn draw_checkerboard(painter: &egui::Painter, rect: egui::Rect) {
         }
         y += checker_size;
         row += 1;
+    }
+}
+
+/// Format file size in human-readable form
+fn format_file_size(bytes: usize) -> String {
+    const KB: usize = 1024;
+    const MB: usize = 1024 * 1024;
+
+    if bytes >= MB {
+        format!("{:.1} MB", bytes as f64 / MB as f64)
+    } else if bytes >= KB {
+        format!("{:.1} KB", bytes as f64 / KB as f64)
+    } else {
+        format!("{} B", bytes)
     }
 }

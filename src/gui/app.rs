@@ -99,6 +99,12 @@ impl BentoApp {
                         })
                         .collect();
 
+                    // Estimate PNG file sizes
+                    self.state.runtime.atlas_png_sizes = atlases
+                        .iter()
+                        .map(|atlas| estimate_png_size(&atlas.image))
+                        .collect();
+
                     // Store hash for auto-repack detection
                     self.state.runtime.last_packed_hash =
                         Some(self.state.config.pack_settings_hash());
@@ -317,6 +323,29 @@ fn export_atlases(atlases: &[Atlas], config: &AppConfig) -> Result<(), String> {
     }
 
     Ok(())
+}
+
+/// Estimate PNG file size by encoding to memory
+fn estimate_png_size(image: &image::RgbaImage) -> usize {
+    use image::codecs::png::PngEncoder;
+    use image::ImageEncoder;
+    use std::io::Cursor;
+
+    let mut buffer = Cursor::new(Vec::new());
+    let encoder = PngEncoder::new(&mut buffer);
+    if encoder
+        .write_image(
+            image.as_raw(),
+            image.width(),
+            image.height(),
+            image::ExtendedColorType::Rgba8,
+        )
+        .is_ok()
+    {
+        buffer.into_inner().len()
+    } else {
+        0
+    }
 }
 
 impl eframe::App for BentoApp {

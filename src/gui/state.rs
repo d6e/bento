@@ -153,6 +153,8 @@ pub struct RuntimeState {
 
     // Texture handles for preview (one per atlas)
     pub atlas_textures: Vec<egui::TextureHandle>,
+    // Estimated PNG file sizes (one per atlas)
+    pub atlas_png_sizes: Vec<usize>,
 
     // Preview controls
     pub preview_zoom: f32,
@@ -176,6 +178,7 @@ impl Default for RuntimeState {
             selected_atlas: 0,
 
             atlas_textures: Vec::new(),
+            atlas_png_sizes: Vec::new(),
             preview_zoom: 1.0,
             preview_offset: egui::Vec2::ZERO,
 
