@@ -372,26 +372,19 @@ impl eframe::App for BentoApp {
                 panels::input_panel(ui, &mut self.state);
             });
 
-        // Right side split: preview on top, settings on bottom
-        egui::CentralPanel::default().show(ctx, |ui| {
-            let available_height = ui.available_height();
-            let preview_height = available_height * 0.6;
-
-            // Preview panel (top)
-            ui.allocate_ui_with_layout(
-                egui::vec2(ui.available_width(), preview_height),
-                egui::Layout::top_down(egui::Align::LEFT),
-                |ui| {
-                    panels::preview_panel(ui, &mut self.state);
-                },
-            );
-
-            ui.separator();
-
-            // Settings panel (bottom)
-            egui::ScrollArea::vertical().show(ui, |ui| {
-                panels::settings_panel(ui, &mut self.state);
+        // Right panel with settings
+        egui::SidePanel::right("settings_panel")
+            .default_width(280.0)
+            .min_width(200.0)
+            .show(ctx, |ui| {
+                egui::ScrollArea::vertical().show(ui, |ui| {
+                    panels::settings_panel(ui, &mut self.state);
+                });
             });
+
+        // Central panel with preview
+        egui::CentralPanel::default().show(ctx, |ui| {
+            panels::preview_panel(ui, &mut self.state);
         });
 
         // Render drag-drop overlay on top of everything
