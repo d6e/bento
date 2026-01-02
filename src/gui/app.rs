@@ -4,8 +4,11 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use super::{is_supported_image, panels};
-use super::state::{AppConfig, AppState, BackgroundTask, Operation, ResizeMode, Status, StatusResult};
-use crate::atlas::AtlasBuilder;
+use super::state::{
+    AppConfig, AppState, BackgroundTask, Operation, OutputFormat, ResizeMode, Status, StatusResult,
+};
+use crate::atlas::{Atlas, AtlasBuilder};
+use crate::output::{save_atlas_image, write_godot_resources, write_json};
 use crate::sprite::load_sprites;
 
 /// Main GUI application
@@ -140,10 +143,66 @@ impl BentoApp {
         };
         self.state.runtime.atlases = None; // Clear old atlases
     }
+
+    /// Poll background export task for completion
+    fn poll_export_task(&mut self) {
+        if let Some(task) = &self.state.runtime.export_task
+            && let Some(result) = task.poll()
+        {
+            // Task completed, clear it
+            self.state.runtime.export_task = None;
+
+            match result {
+                Ok(()) => {
+                    self.state.runtime.status = Status::Done {
+                        result: StatusResult::Success("Exported successfully".to_string()),
+                        at: Instant::now(),
+                    };
+                }
+                Err(err) => {
+                    self.state.runtime.status = Status::Done {
+                        result: StatusResult::Error(err),
+                        at: Instant::now(),
+                    };
+                }
+            }
+        }
+    }
+
+    /// Start export in a background thread
+    pub fn start_export(&mut self) {
+        // Need atlases to export
+        let Some(atlases) = self.state.runtime.atlases.clone() else {
+            self.state.runtime.status = Status::Done {
+                result: StatusResult::Error("No atlas to export".to_string()),
+                at: Instant::now(),
+            };
+            return;
+        };
+
+        // Clone config for the worker thread
+        let config = self.state.config.clone();
+
+        // Set up channel
+        let (tx, rx) = mpsc::channel();
+
+        // Spawn worker thread
+        std::thread::spawn(move || {
+            let result = export_atlases(&atlases, &config);
+            let _ = tx.send(result);
+        });
+
+        // Update state
+        self.state.runtime.export_task = Some(BackgroundTask::new(rx));
+        self.state.runtime.status = Status::Working {
+            operation: Operation::Exporting,
+            started_at: Instant::now(),
+        };
+    }
 }
 
 /// Perform packing on a background thread
-fn pack_atlases(config: &AppConfig) -> Result<Arc<Vec<crate::atlas::Atlas>>, String> {
+fn pack_atlases(config: &AppConfig) -> Result<Arc<Vec<Atlas>>, String> {
     if config.input_paths.is_empty() {
         return Err("No input files".to_string());
     }
@@ -178,6 +237,35 @@ fn pack_atlases(config: &AppConfig) -> Result<Arc<Vec<crate::atlas::Atlas>>, Str
     Ok(Arc::new(atlases))
 }
 
+/// Perform export on a background thread
+fn export_atlases(atlases: &[Atlas], config: &AppConfig) -> Result<(), String> {
+    // Ensure output directory exists
+    std::fs::create_dir_all(&config.output_dir)
+        .map_err(|e| format!("Failed to create output directory: {}", e))?;
+
+    // Save PNG images for each atlas
+    for atlas in atlases {
+        let png_path = config
+            .output_dir
+            .join(format!("{}_{}.png", config.name, atlas.index));
+        save_atlas_image(atlas, &png_path, config.opaque, config.compress)
+            .map_err(|e| e.to_string())?;
+    }
+
+    // Write metadata file based on format
+    match config.format {
+        OutputFormat::Json => {
+            write_json(atlases, &config.output_dir, &config.name).map_err(|e| e.to_string())?;
+        }
+        OutputFormat::Godot => {
+            write_godot_resources(atlases, &config.output_dir, &config.name, None)
+                .map_err(|e| e.to_string())?;
+        }
+    }
+
+    Ok(())
+}
+
 impl eframe::App for BentoApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         // Handle dropped files
@@ -185,9 +273,10 @@ impl eframe::App for BentoApp {
 
         // Poll background tasks
         self.poll_pack_task(ctx);
+        self.poll_export_task();
 
         // Request repaint if we have an active task (to poll again)
-        if self.state.runtime.pack_task.is_some() {
+        if self.state.runtime.pack_task.is_some() || self.state.runtime.export_task.is_some() {
             ctx.request_repaint();
         }
 
@@ -208,7 +297,9 @@ impl eframe::App for BentoApp {
         if action.pack_requested {
             self.start_pack();
         }
-        // Export will be implemented in Stage 4
+        if action.export_requested {
+            self.start_export();
+        }
 
         // Left panel with input controls
         egui::SidePanel::left("input_panel")
