@@ -19,11 +19,18 @@ pub struct BentoApp {
     state: AppState,
 }
 
+const LAST_INPUT_DIR_KEY: &str = "last_input_dir";
+
 impl BentoApp {
-    pub fn new(_cc: &eframe::CreationContext<'_>) -> Self {
-        Self {
-            state: AppState::default(),
+    pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
+        let mut state = AppState::default();
+
+        // Restore persisted state
+        if let Some(storage) = cc.storage {
+            state.runtime.last_input_dir = eframe::get_value(storage, LAST_INPUT_DIR_KEY);
         }
+
+        Self { state }
     }
 
     fn handle_dropped_files(&mut self, ctx: &egui::Context) {
@@ -350,6 +357,10 @@ fn estimate_png_size(image: &image::RgbaImage) -> usize {
 }
 
 impl eframe::App for BentoApp {
+    fn save(&mut self, storage: &mut dyn eframe::Storage) {
+        eframe::set_value(storage, LAST_INPUT_DIR_KEY, &self.state.runtime.last_input_dir);
+    }
+
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         // Handle dropped files
         self.handle_dropped_files(ctx);

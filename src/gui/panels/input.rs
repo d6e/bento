@@ -11,23 +11,36 @@ pub fn input_panel(ui: &mut egui::Ui, state: &mut AppState) {
 
     // File action buttons
     ui.horizontal(|ui| {
-        if ui.button("+ Add Files").clicked()
-            && let Some(paths) = rfd::FileDialog::new()
-                .add_filter("Images", &["png", "jpg", "jpeg", "gif", "bmp", "webp"])
-                .pick_files()
-        {
-            state.config.input_paths.extend(paths);
+        if ui.button("+ Add Files").clicked() {
+            let mut dialog = rfd::FileDialog::new()
+                .add_filter("Images", &["png", "jpg", "jpeg", "gif", "bmp", "webp"]);
+            if let Some(dir) = &state.runtime.last_input_dir {
+                dialog = dialog.set_directory(dir);
+            }
+            if let Some(paths) = dialog.pick_files() {
+                // Remember the directory of the first file
+                if let Some(first) = paths.first() {
+                    state.runtime.last_input_dir = first.parent().map(|p| p.to_path_buf());
+                }
+                state.config.input_paths.extend(paths);
+            }
         }
 
-        if ui.button("+ Add Folder").clicked()
-            && let Some(folder) = rfd::FileDialog::new().pick_folder()
-        {
-            // Recursively add image files from folder
-            if let Ok(entries) = std::fs::read_dir(&folder) {
-                for entry in entries.flatten() {
-                    let path = entry.path();
-                    if path.is_file() && is_supported_image(&path) {
-                        state.config.input_paths.push(path);
+        if ui.button("+ Add Folder").clicked() {
+            let mut dialog = rfd::FileDialog::new();
+            if let Some(dir) = &state.runtime.last_input_dir {
+                dialog = dialog.set_directory(dir);
+            }
+            if let Some(folder) = dialog.pick_folder() {
+                // Remember this folder
+                state.runtime.last_input_dir = Some(folder.clone());
+                // Recursively add image files from folder
+                if let Ok(entries) = std::fs::read_dir(&folder) {
+                    for entry in entries.flatten() {
+                        let path = entry.path();
+                        if path.is_file() && is_supported_image(&path) {
+                            state.config.input_paths.push(path);
+                        }
                     }
                 }
             }

@@ -21,7 +21,7 @@ rayon = "1.10"
 oxipng = { version = "9", default-features = false, features = ["parallel", "zopfli"] }
 
 # GUI dependencies (optional)
-eframe = { version = "0.30", optional = true }
+eframe = { version = "0.30", optional = true, features = ["persistence"] }
 egui_extras = { version = "0.30", optional = true, features = ["image"] }
 rfd = { version = "0.15", optional = true }
 

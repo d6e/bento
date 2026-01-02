@@ -169,6 +169,9 @@ pub struct RuntimeState {
     pub auto_repack: bool,
     pub last_packed_hash: Option<u64>,
     pub pending_repack_at: Option<Instant>,
+
+    // Persisted UI state
+    pub last_input_dir: Option<PathBuf>,
 }
 
 impl Default for RuntimeState {
@@ -189,6 +192,8 @@ impl Default for RuntimeState {
             auto_repack: true,
             last_packed_hash: None,
             pending_repack_at: None,
+
+            last_input_dir: None,
         }
     }
 }
