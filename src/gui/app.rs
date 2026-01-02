@@ -1,8 +1,12 @@
 use eframe::egui;
-use std::time::Duration;
+use std::sync::mpsc;
+use std::sync::Arc;
+use std::time::{Duration, Instant};
 
 use super::{is_supported_image, panels};
-use super::state::AppState;
+use super::state::{AppConfig, AppState, BackgroundTask, Operation, ResizeMode, Status, StatusResult};
+use crate::atlas::AtlasBuilder;
+use crate::sprite::load_sprites;
 
 /// Main GUI application
 pub struct BentoApp {
@@ -59,12 +63,133 @@ impl BentoApp {
             );
         }
     }
+
+    /// Poll background pack task for completion
+    fn poll_pack_task(&mut self, ctx: &egui::Context) {
+        if let Some(task) = &self.state.runtime.pack_task
+            && let Some(result) = task.poll()
+        {
+            // Task completed, clear it
+            self.state.runtime.pack_task = None;
+
+            match result {
+                Ok(atlases) => {
+                    let count = atlases.len();
+
+                    // Create textures from atlases
+                    self.state.runtime.atlas_textures = atlases
+                        .iter()
+                        .enumerate()
+                        .map(|(i, atlas)| {
+                            let image = egui::ColorImage::from_rgba_unmultiplied(
+                                [atlas.width as usize, atlas.height as usize],
+                                &atlas.image,
+                            );
+                            ctx.load_texture(
+                                format!("atlas_{}", i),
+                                image,
+                                egui::TextureOptions::NEAREST,
+                            )
+                        })
+                        .collect();
+
+                    // Reset preview state
+                    self.state.runtime.preview_zoom = 1.0;
+                    self.state.runtime.preview_offset = egui::Vec2::ZERO;
+
+                    self.state.runtime.atlases = Some(atlases);
+                    self.state.runtime.selected_atlas = 0;
+                    self.state.runtime.status = Status::Done {
+                        result: StatusResult::Success(format!(
+                            "{} atlas{} packed",
+                            count,
+                            if count == 1 { "" } else { "es" }
+                        )),
+                        at: Instant::now(),
+                    };
+                }
+                Err(err) => {
+                    self.state.runtime.status = Status::Done {
+                        result: StatusResult::Error(err),
+                        at: Instant::now(),
+                    };
+                }
+            }
+        }
+    }
+
+    /// Start packing in a background thread
+    pub fn start_pack(&mut self) {
+        // Clone config for the worker thread
+        let config = self.state.config.clone();
+
+        // Set up channel
+        let (tx, rx) = mpsc::channel();
+
+        // Spawn worker thread
+        std::thread::spawn(move || {
+            let result = pack_atlases(&config);
+            let _ = tx.send(result);
+        });
+
+        // Update state
+        self.state.runtime.pack_task = Some(BackgroundTask::new(rx));
+        self.state.runtime.status = Status::Working {
+            operation: Operation::Packing,
+            started_at: Instant::now(),
+        };
+        self.state.runtime.atlases = None; // Clear old atlases
+    }
+}
+
+/// Perform packing on a background thread
+fn pack_atlases(config: &AppConfig) -> Result<Arc<Vec<crate::atlas::Atlas>>, String> {
+    if config.input_paths.is_empty() {
+        return Err("No input files".to_string());
+    }
+
+    // Extract resize options
+    let (resize_width, resize_scale) = match config.resize_mode {
+        ResizeMode::None => (None, None),
+        ResizeMode::Width(w) => (Some(w), None),
+        ResizeMode::Scale(s) => (None, Some(s)),
+    };
+
+    // Load sprites
+    let sprites = load_sprites(
+        &config.input_paths,
+        config.trim,
+        config.trim_margin,
+        resize_width,
+        resize_scale,
+    )
+    .map_err(|e| e.to_string())?;
+
+    // Build atlas
+    let atlases = AtlasBuilder::new(config.max_width, config.max_height)
+        .padding(config.padding)
+        .heuristic(config.heuristic)
+        .power_of_two(config.pot)
+        .extrude(config.extrude)
+        .pack_mode(config.pack_mode)
+        .build(sprites)
+        .map_err(|e| e.to_string())?;
+
+    Ok(Arc::new(atlases))
 }
 
 impl eframe::App for BentoApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         // Handle dropped files
         self.handle_dropped_files(ctx);
+
+        // Poll background tasks
+        self.poll_pack_task(ctx);
+
+        // Request repaint if we have an active task (to poll again)
+        if self.state.runtime.pack_task.is_some() {
+            ctx.request_repaint();
+        }
 
         // Auto-clear old success messages
         self.state
@@ -75,9 +200,15 @@ impl eframe::App for BentoApp {
         // Top panel with title/menu bar could go here if needed
 
         // Bottom panel with Pack/Export buttons and status
-        egui::TopBottomPanel::bottom("bottom_bar").show(ctx, |ui| {
-            panels::bottom_bar(ui, &mut self.state);
-        });
+        let action = egui::TopBottomPanel::bottom("bottom_bar")
+            .show(ctx, |ui| panels::bottom_bar(ui, &mut self.state))
+            .inner;
+
+        // Handle actions from bottom bar
+        if action.pack_requested {
+            self.start_pack();
+        }
+        // Export will be implemented in Stage 4
 
         // Left panel with input controls
         egui::SidePanel::left("input_panel")

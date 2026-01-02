@@ -401,6 +401,7 @@ impl AtlasBuilder {
         };
 
         let mut atlas = Atlas::new(index, final_width, final_height);
+        atlas.occupancy = layout.occupancy;
 
         // Convert sprites vec to allow indexed access
         let mut sprites: Vec<Option<SourceSprite>> = sprites.into_iter().map(Some).collect();

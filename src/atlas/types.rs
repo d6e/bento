@@ -3,7 +3,7 @@ use image::RgbaImage;
 use crate::sprite::PackedSprite;
 
 /// A completed texture atlas
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Atlas {
     /// Atlas index (for multi-atlas support)
     pub index: usize,
@@ -15,6 +15,8 @@ pub struct Atlas {
     pub image: RgbaImage,
     /// All sprites packed into this atlas
     pub sprites: Vec<PackedSprite>,
+    /// Packing efficiency (0.0 to 1.0, ratio of sprite area to atlas area)
+    pub occupancy: f64,
 }
 
 impl Atlas {
@@ -25,6 +27,7 @@ impl Atlas {
             height,
             image: RgbaImage::new(width, height),
             sprites: Vec::new(),
+            occupancy: 0.0,
         }
     }
 }

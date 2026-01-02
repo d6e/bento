@@ -10,8 +10,17 @@ use eframe::egui;
 
 use super::state::{AppState, Operation, Status, StatusResult};
 
+/// Action requested by the bottom bar
+#[derive(Default)]
+pub struct BottomBarAction {
+    pub pack_requested: bool,
+    pub export_requested: bool,
+}
+
 /// Bottom bar with Pack/Export buttons and status
-pub fn bottom_bar(ui: &mut egui::Ui, state: &mut AppState) {
+pub fn bottom_bar(ui: &mut egui::Ui, state: &mut AppState) -> BottomBarAction {
+    let mut action = BottomBarAction::default();
+
     ui.horizontal(|ui| {
         let is_busy = matches!(state.runtime.status, Status::Working { .. });
         let has_files = !state.config.input_paths.is_empty();
@@ -21,7 +30,7 @@ pub fn bottom_bar(ui: &mut egui::Ui, state: &mut AppState) {
             .add_enabled(!is_busy && has_files, egui::Button::new("Pack Atlas"))
             .clicked()
         {
-            // Packing will be implemented in Stage 3
+            action.pack_requested = true;
         }
 
         if is_busy {
@@ -75,8 +84,10 @@ pub fn bottom_bar(ui: &mut egui::Ui, state: &mut AppState) {
                 .add_enabled(can_export, egui::Button::new("Export"))
                 .clicked()
             {
-                // Export will be implemented in Stage 4
+                action.export_requested = true;
             }
         });
     });
+
+    action
 }

@@ -1,3 +1,4 @@
+use eframe::egui;
 use std::path::PathBuf;
 use std::sync::mpsc;
 use std::sync::Arc;
@@ -139,6 +140,13 @@ pub struct RuntimeState {
     pub atlases: Option<Arc<Vec<Atlas>>>,
     pub selected_atlas: usize,
 
+    // Texture handles for preview (one per atlas)
+    pub atlas_textures: Vec<egui::TextureHandle>,
+
+    // Preview controls
+    pub preview_zoom: f32,
+    pub preview_offset: egui::Vec2,
+
     // Status and tasks
     pub status: Status,
     pub pack_task: Option<BackgroundTask<Arc<Vec<Atlas>>>>,
@@ -155,6 +163,10 @@ impl Default for RuntimeState {
         Self {
             atlases: None,
             selected_atlas: 0,
+
+            atlas_textures: Vec::new(),
+            preview_zoom: 1.0,
+            preview_offset: egui::Vec2::ZERO,
 
             status: Status::Idle,
             pack_task: None,
