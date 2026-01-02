@@ -102,8 +102,8 @@ impl Default for AppConfig {
             trim_margin: 0,
             extrude: 0,
             resize_mode: ResizeMode::default(),
-            heuristic: PackingHeuristic::default(),
-            pack_mode: PackMode::default(),
+            heuristic: PackingHeuristic::Best,
+            pack_mode: PackMode::Best,
 
             compress: None,
             opaque: false,
@@ -183,7 +183,7 @@ impl Default for RuntimeState {
             pack_task: None,
             export_task: None,
 
-            auto_repack: false,
+            auto_repack: true,
             last_packed_hash: None,
             pending_repack_at: None,
         }
