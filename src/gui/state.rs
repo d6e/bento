@@ -1,5 +1,5 @@
 use eframe::egui;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::sync::mpsc;
 use std::sync::Arc;
@@ -27,6 +27,16 @@ pub enum ResizeMode {
     None,
     Width(u32),
     Scale(f32),
+}
+
+/// State of a thumbnail for an input sprite
+pub enum ThumbnailState {
+    /// Thumbnail is being loaded in background
+    Loading,
+    /// Thumbnail loaded successfully
+    Loaded(egui::TextureHandle),
+    /// Failed to load (invalid image, etc.)
+    Failed,
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -184,6 +194,10 @@ pub struct RuntimeState {
     // Input sprite selection
     pub selected_sprites: HashSet<usize>,
     pub selection_anchor: Option<usize>,
+
+    // Thumbnails for input sprites
+    pub thumbnails: HashMap<PathBuf, ThumbnailState>,
+    pub thumbnail_receiver: Option<mpsc::Receiver<(PathBuf, Option<image::RgbaImage>)>>,
 }
 
 impl Default for RuntimeState {
@@ -214,6 +228,9 @@ impl Default for RuntimeState {
 
             selected_sprites: HashSet::new(),
             selection_anchor: None,
+
+            thumbnails: HashMap::new(),
+            thumbnail_receiver: None,
         }
     }
 }

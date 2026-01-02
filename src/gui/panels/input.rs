@@ -1,7 +1,8 @@
 use eframe::egui;
 
-use crate::gui::state::{AppState, OutputFormat};
 use crate::gui::is_supported_image;
+use crate::gui::state::{AppState, OutputFormat, ThumbnailState};
+use crate::gui::thumbnail::THUMBNAIL_SIZE;
 
 /// Input panel with file list, output path, and format selection
 pub fn input_panel(ui: &mut egui::Ui, state: &mut AppState) {
@@ -146,6 +147,8 @@ pub fn input_panel(ui: &mut egui::Ui, state: &mut AppState) {
                 remove_selected = true;
             }
 
+            let thumb_size = THUMBNAIL_SIZE as f32;
+
             for (original_idx, path) in &filtered {
                 let is_selected = state.runtime.selected_sprites.contains(original_idx);
 
@@ -154,6 +157,52 @@ pub fn input_panel(ui: &mut egui::Ui, state: &mut AppState) {
                     // Remove button (x) for quick single removal
                     if ui.small_button("x").clicked() {
                         to_remove = Some(*original_idx);
+                    }
+
+                    // Thumbnail
+                    let (thumb_rect, _) = ui.allocate_exact_size(
+                        egui::vec2(thumb_size, thumb_size),
+                        egui::Sense::hover(),
+                    );
+
+                    match state.runtime.thumbnails.get(*path) {
+                        Some(ThumbnailState::Loaded(texture)) => {
+                            // Center the texture within the allocated rect
+                            let tex_size = texture.size_vec2();
+                            let centered_rect = center_rect_in(tex_size, thumb_rect);
+                            ui.painter().image(
+                                texture.id(),
+                                centered_rect,
+                                egui::Rect::from_min_max(
+                                    egui::pos2(0.0, 0.0),
+                                    egui::pos2(1.0, 1.0),
+                                ),
+                                egui::Color32::WHITE,
+                            );
+                        }
+                        Some(ThumbnailState::Loading) => {
+                            // Show loading placeholder
+                            ui.painter().rect_filled(
+                                thumb_rect,
+                                2.0,
+                                egui::Color32::from_gray(60),
+                            );
+                        }
+                        Some(ThumbnailState::Failed) | None => {
+                            // Show error/missing placeholder
+                            ui.painter().rect_filled(
+                                thumb_rect,
+                                2.0,
+                                egui::Color32::from_gray(40),
+                            );
+                            ui.painter().text(
+                                thumb_rect.center(),
+                                egui::Align2::CENTER_CENTER,
+                                "?",
+                                egui::FontId::default(),
+                                egui::Color32::from_gray(80),
+                            );
+                        }
                     }
 
                     // Display filename with click sense
@@ -354,5 +403,11 @@ fn remove_selected_sprites(state: &mut AppState) {
 
     state.runtime.selected_sprites.clear();
     state.runtime.selection_anchor = None;
+}
+
+/// Center a smaller rect within a larger rect
+fn center_rect_in(inner_size: egui::Vec2, outer: egui::Rect) -> egui::Rect {
+    let offset = (outer.size() - inner_size) / 2.0;
+    egui::Rect::from_min_size(outer.min + offset, inner_size)
 }
 

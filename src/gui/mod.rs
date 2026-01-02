@@ -1,6 +1,7 @@
 mod app;
 mod panels;
 pub mod state;
+mod thumbnail;
 
 use anyhow::Result;
 use eframe::egui;

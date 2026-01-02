@@ -3,10 +3,12 @@ use std::sync::mpsc;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use super::{is_supported_image, panels};
 use super::state::{
-    AppConfig, AppState, BackgroundTask, Operation, OutputFormat, ResizeMode, Status, StatusResult,
+    AppConfig, AppState, BackgroundTask, Operation, OutputFormat, ResizeMode, Status,
+    StatusResult, ThumbnailState,
 };
+use super::thumbnail::spawn_thumbnail_loader;
+use super::{is_supported_image, panels};
 use crate::atlas::{Atlas, AtlasBuilder};
 use crate::output::{save_atlas_image, write_godot_resources, write_json};
 use crate::sprite::load_sprites;
@@ -267,6 +269,83 @@ impl BentoApp {
             self.state.runtime.pending_repack_at = None;
         }
     }
+
+    /// Queue thumbnail loading for paths that aren't in the cache
+    fn queue_thumbnail_loading(&mut self) {
+        // Collect paths that need loading
+        let paths_to_load: Vec<std::path::PathBuf> = self
+            .state
+            .config
+            .input_paths
+            .iter()
+            .filter(|p| !self.state.runtime.thumbnails.contains_key(*p))
+            .cloned()
+            .collect();
+
+        if paths_to_load.is_empty() {
+            return;
+        }
+
+        // Mark as loading
+        for path in &paths_to_load {
+            self.state
+                .runtime
+                .thumbnails
+                .insert(path.clone(), ThumbnailState::Loading);
+        }
+
+        // Spawn loader if not already running
+        if self.state.runtime.thumbnail_receiver.is_none() {
+            self.state.runtime.thumbnail_receiver = Some(spawn_thumbnail_loader(paths_to_load));
+        }
+    }
+
+    /// Poll for completed thumbnail loads
+    fn poll_thumbnails(&mut self, ctx: &egui::Context) {
+        let Some(receiver) = &self.state.runtime.thumbnail_receiver else {
+            return;
+        };
+
+        // Drain all available results
+        loop {
+            match receiver.try_recv() {
+                Ok((path, image)) => {
+                    let state = match image {
+                        Some(img) => {
+                            let color_image = egui::ColorImage::from_rgba_unmultiplied(
+                                [img.width() as usize, img.height() as usize],
+                                img.as_raw(),
+                            );
+                            let texture = ctx.load_texture(
+                                format!("thumb_{}", path.display()),
+                                color_image,
+                                egui::TextureOptions::LINEAR,
+                            );
+                            ThumbnailState::Loaded(texture)
+                        }
+                        None => ThumbnailState::Failed,
+                    };
+                    self.state.runtime.thumbnails.insert(path, state);
+                }
+                Err(std::sync::mpsc::TryRecvError::Empty) => break,
+                Err(std::sync::mpsc::TryRecvError::Disconnected) => {
+                    // Loader thread finished
+                    self.state.runtime.thumbnail_receiver = None;
+
+                    // Check if there are new paths that need loading
+                    self.queue_thumbnail_loading();
+                    break;
+                }
+            }
+        }
+    }
+
+    /// Clean up thumbnails for paths no longer in input_paths
+    fn cleanup_thumbnails(&mut self) {
+        self.state.runtime.thumbnails.retain(|path, _| {
+            self.state.config.input_paths.contains(path)
+        });
+    }
 }
 
 /// Perform packing on a background thread
@@ -370,6 +449,11 @@ impl eframe::App for BentoApp {
         self.poll_pack_task(ctx);
         self.poll_export_task();
 
+        // Handle thumbnails
+        self.queue_thumbnail_loading();
+        self.poll_thumbnails(ctx);
+        self.cleanup_thumbnails();
+
         // Handle auto-repack (debounced)
         self.handle_auto_repack();
 
@@ -377,6 +461,7 @@ impl eframe::App for BentoApp {
         if self.state.runtime.pack_task.is_some()
             || self.state.runtime.export_task.is_some()
             || self.state.runtime.pending_repack_at.is_some()
+            || self.state.runtime.thumbnail_receiver.is_some()
         {
             ctx.request_repaint();
         }
