@@ -20,3 +20,75 @@ pub fn resize_by_scale(img: RgbaImage, scale: f32) -> RgbaImage {
         FilterType::Lanczos3,
     )
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use image::Rgba;
+
+    #[test]
+    fn test_resize_to_width_preserves_aspect_ratio() {
+        let mut img = RgbaImage::new(200, 100);
+        for pixel in img.pixels_mut() {
+            *pixel = Rgba([255, 0, 0, 255]);
+        }
+
+        let resized = resize_to_width(img, 100);
+
+        assert_eq!(resized.width(), 100);
+        assert_eq!(resized.height(), 50); // 100 * (100/200) = 50
+    }
+
+    #[test]
+    fn test_resize_to_width_tall_image() {
+        let mut img = RgbaImage::new(100, 400);
+        for pixel in img.pixels_mut() {
+            *pixel = Rgba([255, 0, 0, 255]);
+        }
+
+        let resized = resize_to_width(img, 50);
+
+        assert_eq!(resized.width(), 50);
+        assert_eq!(resized.height(), 200); // 400 * (50/100) = 200
+    }
+
+    #[test]
+    fn test_resize_by_scale_half() {
+        let mut img = RgbaImage::new(100, 80);
+        for pixel in img.pixels_mut() {
+            *pixel = Rgba([255, 0, 0, 255]);
+        }
+
+        let resized = resize_by_scale(img, 0.5);
+
+        assert_eq!(resized.width(), 50);
+        assert_eq!(resized.height(), 40);
+    }
+
+    #[test]
+    fn test_resize_by_scale_double() {
+        let mut img = RgbaImage::new(50, 30);
+        for pixel in img.pixels_mut() {
+            *pixel = Rgba([255, 0, 0, 255]);
+        }
+
+        let resized = resize_by_scale(img, 2.0);
+
+        assert_eq!(resized.width(), 100);
+        assert_eq!(resized.height(), 60);
+    }
+
+    #[test]
+    fn test_resize_minimum_dimension_is_one() {
+        let mut img = RgbaImage::new(100, 100);
+        for pixel in img.pixels_mut() {
+            *pixel = Rgba([255, 0, 0, 255]);
+        }
+
+        // Very small scale that would round to 0
+        let resized = resize_by_scale(img, 0.001);
+
+        assert!(resized.width() >= 1);
+        assert!(resized.height() >= 1);
+    }
+}
