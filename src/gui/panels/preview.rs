@@ -198,6 +198,9 @@ fn show_packing_state(ui: &mut egui::Ui) {
         egui::FontId::default(),
         egui::Color32::from_gray(100),
     );
+
+    // Request continuous repaints for animation
+    ui.ctx().request_repaint();
 }
 
 /// Draw a checkerboard background to show transparency
