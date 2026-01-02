@@ -33,10 +33,10 @@ pub fn load_sprites(
         .par_iter()
         .map(|path| {
             // Check for cancellation before loading each image
-            if let Some(token) = cancel_token {
-                if token.load(Ordering::Relaxed) {
-                    return Err(BentoError::Cancelled.into());
-                }
+            if let Some(token) = cancel_token
+                && token.load(Ordering::Relaxed)
+            {
+                return Err(BentoError::Cancelled.into());
             }
             load_single_sprite(path, trim, trim_margin, resize_width, resize_scale)
         })
