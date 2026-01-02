@@ -37,8 +37,7 @@ pub fn write_godot_resources(
 fn generate_tres(sprite: &PackedSprite, atlas_path: &str) -> String {
     let (margin_left, margin_top, margin_right, margin_bottom) = sprite.trim_info.godot_margin();
 
-    let has_margin =
-        margin_left != 0 || margin_top != 0 || margin_right != 0 || margin_bottom != 0;
+    let has_margin = margin_left != 0 || margin_top != 0 || margin_right != 0 || margin_bottom != 0;
 
     let mut content = format!(
         r#"[gd_resource type="AtlasTexture" load_steps=2 format=3]

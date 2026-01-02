@@ -58,4 +58,3 @@ pub fn save_atlas_image(
 
     Ok(())
 }
-

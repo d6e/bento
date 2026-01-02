@@ -207,7 +207,9 @@ impl AtlasBuilder {
                     let order = self.sorted_indices(&sprites, ordering);
                     let layout = self.try_pack(&sprites, &order, index, self.heuristic);
 
-                    let dominated = best.as_ref().is_some_and(|(_, b)| !layout.is_better_than(b));
+                    let dominated = best
+                        .as_ref()
+                        .is_some_and(|(_, b)| !layout.is_better_than(b));
                     if !dominated {
                         best = Some((ordering, layout));
                     }
@@ -390,7 +392,10 @@ impl AtlasBuilder {
         layout: PackingLayout,
     ) -> Result<(Atlas, Vec<SourceSprite>)> {
         let (final_width, final_height) = if self.power_of_two {
-            (next_power_of_two(layout.max_x), next_power_of_two(layout.max_y))
+            (
+                next_power_of_two(layout.max_x),
+                next_power_of_two(layout.max_y),
+            )
         } else {
             (layout.max_x, layout.max_y)
         };
@@ -459,13 +464,7 @@ impl AtlasBuilder {
         Ok((atlas, unpacked))
     }
 
-    fn extrude_sprite(
-        &self,
-        atlas: &mut image::RgbaImage,
-        sprite: &SourceSprite,
-        x: u32,
-        y: u32,
-    ) {
+    fn extrude_sprite(&self, atlas: &mut image::RgbaImage, sprite: &SourceSprite, x: u32, y: u32) {
         let img = &sprite.image;
         let (w, h) = img.dimensions();
 
@@ -644,7 +643,11 @@ mod tests {
 
         let atlases = result.unwrap();
         assert_eq!(atlases.len(), 1, "All sprites should fit in one atlas");
-        assert_eq!(atlases[0].sprites.len(), 4, "All 4 sprites should be packed");
+        assert_eq!(
+            atlases[0].sprites.len(),
+            4,
+            "All 4 sprites should be packed"
+        );
     }
 
     #[test]

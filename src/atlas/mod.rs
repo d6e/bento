@@ -1,5 +1,5 @@
-mod atlas;
 mod builder;
+mod types;
 
-pub use atlas::Atlas;
 pub use builder::AtlasBuilder;
+pub use types::Atlas;

@@ -89,7 +89,6 @@ pub enum PackMode {
     Best,
 }
 
-
 /// PNG compression level (0-6 or max)
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CompressionLevel {

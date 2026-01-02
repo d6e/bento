@@ -5,7 +5,7 @@ use image::ImageReader;
 use log::info;
 use rayon::prelude::*;
 
-use super::{trim_sprite, SourceSprite, TrimInfo};
+use super::{SourceSprite, TrimInfo, trim_sprite};
 use crate::error::BentoError;
 
 const SUPPORTED_EXTENSIONS: &[&str] = &["png", "jpg", "jpeg", "gif", "bmp", "webp"];

@@ -18,7 +18,9 @@ pub enum BentoError {
     #[error("No valid images found in input")]
     NoImages,
 
-    #[error("Sprite '{name}' ({width}x{height}) exceeds maximum atlas size ({max_width}x{max_height})")]
+    #[error(
+        "Sprite '{name}' ({width}x{height}) exceeds maximum atlas size ({max_width}x{max_height})"
+    )]
     SpriteTooLarge {
         name: String,
         width: u32,

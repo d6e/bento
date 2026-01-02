@@ -62,8 +62,8 @@ pub fn trim_sprite(image: &RgbaImage, margin: u32) -> (RgbaImage, TrimInfo) {
     let trimmed_width = max_x - min_x + 1;
     let trimmed_height = max_y - min_y + 1;
 
-    let trimmed = image::imageops::crop_imm(image, min_x, min_y, trimmed_width, trimmed_height)
-        .to_image();
+    let trimmed =
+        image::imageops::crop_imm(image, min_x, min_y, trimmed_width, trimmed_height).to_image();
 
     let trim_info = TrimInfo {
         offset_x: min_x as i32,

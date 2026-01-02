@@ -403,7 +403,11 @@ mod tests {
         let r1 = packer
             .insert(30, 30, PackingHeuristic::ContactPoint)
             .unwrap();
-        assert_eq!((r1.x, r1.y), (0, 0), "First rect should be at origin for max edge contact");
+        assert_eq!(
+            (r1.x, r1.y),
+            (0, 0),
+            "First rect should be at origin for max edge contact"
+        );
 
         // Second rect should prefer touching the first rect
         let r2 = packer
@@ -419,13 +423,19 @@ mod tests {
         let packer = MaxRectsPacker::new(100, 100);
         // Rectangle at origin touches left and top edges
         let score = packer.contact_score(0, 0, 20, 30);
-        assert_eq!(score, 20 + 30, "Should count left edge (30) + top edge (20)");
+        assert_eq!(
+            score,
+            20 + 30,
+            "Should count left edge (30) + top edge (20)"
+        );
     }
 
     #[test]
     fn test_contact_score_placed_rects() {
         let mut packer = MaxRectsPacker::new(100, 100);
-        packer.insert(30, 30, PackingHeuristic::BestShortSideFit).unwrap();
+        packer
+            .insert(30, 30, PackingHeuristic::BestShortSideFit)
+            .unwrap();
 
         // Rectangle placed adjacent to the right of placed rect at (0,0,30,30)
         let score = packer.contact_score(30, 0, 20, 30);
