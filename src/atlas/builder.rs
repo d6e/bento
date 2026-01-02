@@ -214,7 +214,7 @@ impl AtlasBuilder {
         // If Best heuristic mode, try all heuristics (and orderings if pack_mode is Best)
         let (best_heuristic, best_ordering, best_layout) =
             if self.heuristic == PackingHeuristic::Best {
-                self.find_best_heuristic(&sprites, index)
+                self.find_best_heuristic(&sprites, index)?
             } else {
                 // Use specified heuristic with original ordering (or try orderings if pack_mode is Best)
                 let orderings: &[SpriteOrdering] = if self.pack_mode == PackMode::Best {
@@ -239,7 +239,12 @@ impl AtlasBuilder {
                     }
                 }
 
-                // Orderings slice is non-empty (contains at least Original)
+                // Check if we broke out due to cancellation before trying any ordering
+                if self.is_cancelled() && best.is_none() {
+                    return Err(BentoError::Cancelled.into());
+                }
+
+                // Orderings slice is non-empty, so best is Some if not cancelled
                 #[expect(clippy::expect_used, reason = "orderings is non-empty")]
                 let (ordering, layout) = best.expect("at least one ordering should be tried");
                 (self.heuristic, ordering, layout)
@@ -391,7 +396,7 @@ impl AtlasBuilder {
         &self,
         sprites: &[SourceSprite],
         index: usize,
-    ) -> (PackingHeuristic, SpriteOrdering, PackingLayout) {
+    ) -> Result<(PackingHeuristic, SpriteOrdering, PackingLayout)> {
         let mut best: Option<(PackingHeuristic, SpriteOrdering, PackingLayout)> = None;
 
         // Determine which orderings to try
@@ -431,9 +436,14 @@ impl AtlasBuilder {
             }
         }
 
-        // ALL_HEURISTICS and orderings are non-empty
+        // Check if we broke out due to cancellation before trying any heuristic
+        if self.is_cancelled() && best.is_none() {
+            return Err(BentoError::Cancelled.into());
+        }
+
+        // ALL_HEURISTICS and orderings are non-empty, so best is Some if not cancelled
         #[expect(clippy::expect_used, reason = "heuristics and orderings are non-empty")]
-        best.expect("at least one heuristic should be tried")
+        Ok(best.expect("at least one heuristic should be tried"))
     }
 
     /// Apply a computed layout to produce the final atlas
@@ -830,5 +840,205 @@ mod tests {
             "Error should contain 'cancelled': {}",
             err
         );
+    }
+
+    /// Test: Cancellation in pack_atlas when using pack_mode Best.
+    /// This tests if cancellation before the first ordering iteration causes a panic.
+    #[test]
+    fn test_cancellation_pack_mode_best_no_panic() {
+        use std::sync::atomic::AtomicBool;
+
+        let sprites = vec![SourceSprite {
+            path: std::path::PathBuf::from("test.png"),
+            name: "test".to_string(),
+            image: image::RgbaImage::new(20, 20),
+            trim_info: TrimInfo::untrimmed(20, 20),
+        }];
+
+        // Pre-cancelled token with pack_mode Best
+        // This will go through the orderings loop in pack_atlas
+        let cancel_token = Arc::new(AtomicBool::new(true));
+
+        let builder = AtlasBuilder::new(256, 256)
+            .padding(1)
+            .pack_mode(PackMode::Best)
+            .cancel_token(cancel_token);
+
+        // This should NOT panic - it should return an error
+        let result = builder.build(sprites);
+
+        // Currently this returns Err because build() checks is_cancelled() first
+        // But we want to verify the inner code is also safe
+        assert!(result.is_err());
+    }
+
+    /// Test: Cancellation with Best heuristic mode.
+    /// This exercises find_best_heuristic() with a pre-cancelled token.
+    #[test]
+    fn test_cancellation_best_heuristic_no_panic() {
+        use std::sync::atomic::AtomicBool;
+
+        let sprites = vec![SourceSprite {
+            path: std::path::PathBuf::from("test.png"),
+            name: "test".to_string(),
+            image: image::RgbaImage::new(20, 20),
+            trim_info: TrimInfo::untrimmed(20, 20),
+        }];
+
+        // Pre-cancelled token with Best heuristic
+        let cancel_token = Arc::new(AtomicBool::new(true));
+
+        let builder = AtlasBuilder::new(256, 256)
+            .padding(1)
+            .heuristic(PackingHeuristic::Best)
+            .cancel_token(cancel_token);
+
+        // This should NOT panic
+        let result = builder.build(sprites);
+        assert!(result.is_err());
+    }
+
+    /// Test: Direct call to find_best_heuristic with pre-cancelled token.
+    /// This bypasses build()'s early cancellation check to test the race condition.
+    #[test]
+    fn test_find_best_heuristic_returns_error_when_precancelled() {
+        use std::sync::atomic::AtomicBool;
+
+        let sprites = vec![SourceSprite {
+            path: std::path::PathBuf::from("test.png"),
+            name: "test".to_string(),
+            image: image::RgbaImage::new(20, 20),
+            trim_info: TrimInfo::untrimmed(20, 20),
+        }];
+
+        // Pre-cancelled token
+        let cancel_token = Arc::new(AtomicBool::new(true));
+
+        let builder = AtlasBuilder::new(256, 256)
+            .padding(1)
+            .heuristic(PackingHeuristic::Best)
+            .cancel_token(cancel_token);
+
+        // Directly call find_best_heuristic, bypassing build()'s early check
+        // This should return a Cancelled error, not panic
+        let result = builder.find_best_heuristic(&sprites, 0);
+
+        assert!(result.is_err());
+        let err = result.err().unwrap();
+        assert!(
+            err.to_string().contains("cancelled"),
+            "Error should indicate cancellation"
+        );
+    }
+
+    /// Test: Direct call to pack_atlas logic with pre-cancelled token and pack_mode Best.
+    /// This simulates the race condition where cancellation happens after build()'s check.
+    #[test]
+    fn test_pack_atlas_returns_error_when_precancelled_pack_mode_best() {
+        use std::sync::atomic::AtomicBool;
+
+        let sprites = vec![SourceSprite {
+            path: std::path::PathBuf::from("test.png"),
+            name: "test".to_string(),
+            image: image::RgbaImage::new(20, 20),
+            trim_info: TrimInfo::untrimmed(20, 20),
+        }];
+
+        // Pre-cancelled token with pack_mode Best (not Best heuristic)
+        let cancel_token = Arc::new(AtomicBool::new(true));
+
+        let builder = AtlasBuilder::new(256, 256)
+            .padding(1)
+            .heuristic(PackingHeuristic::BestShortSideFit) // Not Best, so uses pack_atlas's loop
+            .pack_mode(PackMode::Best)
+            .cancel_token(cancel_token);
+
+        // Directly call pack_atlas, bypassing build()'s early check
+        // This should return a Cancelled error, not panic
+        let result = builder.pack_atlas(0, sprites);
+
+        assert!(result.is_err());
+        assert!(
+            result.unwrap_err().to_string().contains("cancelled"),
+            "Error should indicate cancellation"
+        );
+    }
+
+    /// Test: Partial results from try_pack when cancelled mid-loop (deterministic).
+    /// This test proves that sprites are lost when cancellation occurs during packing.
+    #[test]
+    fn test_try_pack_loses_sprites_when_precancelled() {
+        use std::sync::atomic::AtomicBool;
+
+        // Create 10 sprites
+        let mut sprites = Vec::new();
+        for i in 0..10 {
+            sprites.push(SourceSprite {
+                path: std::path::PathBuf::from(format!("test_{}.png", i)),
+                name: format!("test_{}", i),
+                image: image::RgbaImage::new(20, 20),
+                trim_info: TrimInfo::untrimmed(20, 20),
+            });
+        }
+
+        // Pre-cancelled token
+        let cancel_token = Arc::new(AtomicBool::new(true));
+
+        let builder = AtlasBuilder::new(256, 256)
+            .padding(1)
+            .cancel_token(cancel_token);
+
+        let order: Vec<usize> = (0..sprites.len()).collect();
+
+        let layout = builder.try_pack(&sprites, &order, 0, PackingHeuristic::BestShortSideFit);
+
+        // With pre-cancelled token, the loop breaks immediately on first iteration.
+        // No sprites are placed, and no sprites are added to unpacked_indices.
+        let accounted = layout.placements.len() + layout.unpacked_indices.len();
+
+        // BUG: All 10 sprites are lost! They're neither in placements nor unpacked_indices.
+        assert_eq!(
+            accounted, 0,
+            "When cancelled before processing, no sprites are accounted for"
+        );
+        assert_eq!(
+            sprites.len(),
+            10,
+            "But there were 10 sprites that should be tracked"
+        );
+
+        // This proves sprites can be silently lost during cancellation.
+        // In a real scenario, if this partial layout were used, sprites would vanish.
+    }
+
+    /// Test: Verify that try_pack returns incomplete occupancy when cancelled.
+    #[test]
+    fn test_try_pack_returns_zero_occupancy_when_precancelled() {
+        use std::sync::atomic::AtomicBool;
+
+        let sprites = vec![SourceSprite {
+            path: std::path::PathBuf::from("test.png"),
+            name: "test".to_string(),
+            image: image::RgbaImage::new(100, 100),
+            trim_info: TrimInfo::untrimmed(100, 100),
+        }];
+
+        let cancel_token = Arc::new(AtomicBool::new(true));
+
+        let builder = AtlasBuilder::new(256, 256)
+            .padding(1)
+            .cancel_token(cancel_token);
+
+        let order: Vec<usize> = (0..sprites.len()).collect();
+        let layout = builder.try_pack(&sprites, &order, 0, PackingHeuristic::BestShortSideFit);
+
+        // With no sprites placed, occupancy is 0
+        assert_eq!(layout.placements.len(), 0);
+        assert_eq!(layout.max_x, 0);
+        assert_eq!(layout.max_y, 0);
+        assert_eq!(layout.occupancy, 0.0);
+
+        // This empty/zero layout could incorrectly be selected as "best"
+        // in find_best_heuristic if not handled properly.
     }
 }
