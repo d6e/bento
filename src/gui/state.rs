@@ -158,6 +158,12 @@ impl AppConfig {
         }
         std::mem::discriminant(&self.heuristic).hash(&mut hasher);
         std::mem::discriminant(&self.pack_mode).hash(&mut hasher);
+        // Export settings that affect preview (PNG size estimation)
+        self.opaque.hash(&mut hasher);
+        std::mem::discriminant(&self.compress).hash(&mut hasher);
+        if let Some(level) = &self.compress {
+            std::mem::discriminant(level).hash(&mut hasher);
+        }
         hasher.finish()
     }
 }
