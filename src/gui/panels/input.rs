@@ -48,11 +48,42 @@ pub fn input_panel(ui: &mut egui::Ui, state: &mut AppState) {
     });
 
     if !state.config.input_paths.is_empty() {
+        // Clamp selection to valid indices
+        let max_idx = state.config.input_paths.len();
+        state
+            .runtime
+            .selected_sprites
+            .retain(|&i| i < max_idx);
+        if let Some(anchor) = state.runtime.selection_anchor {
+            if anchor >= max_idx {
+                state.runtime.selection_anchor = None;
+            }
+        }
+
         ui.horizontal(|ui| {
             if ui.button("Clear All").clicked() {
                 state.config.input_paths.clear();
+                state.runtime.selected_sprites.clear();
+                state.runtime.selection_anchor = None;
             }
-            ui.label(format!("{} file(s)", state.config.input_paths.len()));
+
+            let has_selection = !state.runtime.selected_sprites.is_empty();
+            if ui
+                .add_enabled(has_selection, egui::Button::new("Remove Selected"))
+                .clicked()
+            {
+                remove_selected_sprites(state);
+            }
+
+            if has_selection {
+                ui.label(format!(
+                    "{} selected / {} file(s)",
+                    state.runtime.selected_sprites.len(),
+                    state.config.input_paths.len()
+                ));
+            } else {
+                ui.label(format!("{} file(s)", state.config.input_paths.len()));
+            }
         });
 
         // Filter input
@@ -100,24 +131,77 @@ pub fn input_panel(ui: &mut egui::Ui, state: &mut AppState) {
                 ));
             }
 
+            // Get modifiers for selection handling
+            let modifiers = ui.input(|i| i.modifiers);
+
+            // Handle Delete/Backspace key (set flag, handle after loop)
+            let delete_pressed = ui.input(|i| {
+                i.key_pressed(egui::Key::Delete) || i.key_pressed(egui::Key::Backspace)
+            });
+
             let mut to_remove = None;
-            for (original_idx, path) in filtered {
-                ui.horizontal(|ui| {
+            let mut remove_selected = false;
+
+            if delete_pressed && !state.runtime.selected_sprites.is_empty() {
+                remove_selected = true;
+            }
+
+            for (original_idx, path) in &filtered {
+                let is_selected = state.runtime.selected_sprites.contains(original_idx);
+
+                // Create a frame for the row
+                let row_rect = ui.horizontal(|ui| {
+                    // Remove button (x) for quick single removal
                     if ui.small_button("x").clicked() {
-                        to_remove = Some(original_idx);
+                        to_remove = Some(*original_idx);
                     }
 
-                    // Display filename only
+                    // Display filename with click sense
                     let filename = path
                         .file_name()
                         .map(|n| n.to_string_lossy().to_string())
                         .unwrap_or_else(|| path.display().to_string());
 
-                    ui.label(filename);
+                    let label = egui::Label::new(filename).sense(egui::Sense::click());
+                    let label_response = ui.add(label);
+
+                    label_response
                 });
+
+                // Draw selection highlight behind the row
+                if is_selected {
+                    ui.painter().rect_filled(
+                        row_rect.response.rect,
+                        2.0,
+                        ui.visuals().selection.bg_fill,
+                    );
+                }
+
+                // Handle row click for selection
+                if row_rect.inner.clicked() {
+                    handle_sprite_click(
+                        &mut state.runtime.selected_sprites,
+                        &mut state.runtime.selection_anchor,
+                        *original_idx,
+                        modifiers,
+                    );
+                }
             }
-            if let Some(i) = to_remove {
+
+            // Drop the filtered borrow before modifying state
+            drop(filtered);
+
+            // Handle removal of selected items
+            if remove_selected {
+                remove_selected_sprites(state);
+            } else if let Some(i) = to_remove {
+                // Remove single item and adjust selection
                 state.config.input_paths.remove(i);
+                adjust_selection_after_removal(
+                    &mut state.runtime.selected_sprites,
+                    &mut state.runtime.selection_anchor,
+                    &[i],
+                );
             }
 
             // Empty state
@@ -175,5 +259,100 @@ pub fn input_panel(ui: &mut egui::Ui, state: &mut AppState) {
         ui.radio_value(&mut state.config.format, OutputFormat::Json, "JSON");
         ui.radio_value(&mut state.config.format, OutputFormat::Godot, "Godot");
     });
+}
+
+/// Handle click on a sprite row, updating selection based on modifiers
+fn handle_sprite_click(
+    selected: &mut std::collections::HashSet<usize>,
+    anchor: &mut Option<usize>,
+    clicked_index: usize,
+    modifiers: egui::Modifiers,
+) {
+    if modifiers.shift && anchor.is_some() {
+        // Shift+click: select range from anchor to clicked
+        let anchor_idx = anchor.unwrap();
+        let (start, end) = if anchor_idx <= clicked_index {
+            (anchor_idx, clicked_index)
+        } else {
+            (clicked_index, anchor_idx)
+        };
+
+        // Add range to selection
+        for i in start..=end {
+            selected.insert(i);
+        }
+        // Keep anchor unchanged for shift-select
+    } else if modifiers.command {
+        // Ctrl/Cmd+click: toggle individual selection
+        if selected.contains(&clicked_index) {
+            selected.remove(&clicked_index);
+        } else {
+            selected.insert(clicked_index);
+        }
+        *anchor = Some(clicked_index);
+    } else {
+        // Plain click: select only this item
+        selected.clear();
+        selected.insert(clicked_index);
+        *anchor = Some(clicked_index);
+    }
+}
+
+/// Adjust selection indices after items are removed
+fn adjust_selection_after_removal(
+    selected: &mut std::collections::HashSet<usize>,
+    anchor: &mut Option<usize>,
+    removed_indices: &[usize],
+) {
+    // Sort indices in descending order for stable adjustment
+    let mut sorted_removed: Vec<_> = removed_indices.to_vec();
+    sorted_removed.sort_by(|a, b| b.cmp(a));
+
+    let mut new_selected = std::collections::HashSet::new();
+    for &idx in selected.iter() {
+        let mut adjusted = idx;
+        let mut was_removed = false;
+        for &removed in &sorted_removed {
+            if removed < idx {
+                adjusted -= 1;
+            } else if removed == idx {
+                was_removed = true;
+                break;
+            }
+        }
+        if !was_removed {
+            new_selected.insert(adjusted);
+        }
+    }
+    *selected = new_selected;
+
+    // Adjust anchor similarly
+    if let Some(a) = *anchor {
+        let mut adjusted = a;
+        for &removed in &sorted_removed {
+            if removed < a {
+                adjusted -= 1;
+            } else if removed == a {
+                *anchor = None;
+                return;
+            }
+        }
+        *anchor = Some(adjusted);
+    }
+}
+
+/// Remove all selected sprites from the input list
+fn remove_selected_sprites(state: &mut AppState) {
+    let mut indices: Vec<usize> = state.runtime.selected_sprites.iter().copied().collect();
+    indices.sort_by(|a, b| b.cmp(a)); // Sort descending
+
+    for i in &indices {
+        if *i < state.config.input_paths.len() {
+            state.config.input_paths.remove(*i);
+        }
+    }
+
+    state.runtime.selected_sprites.clear();
+    state.runtime.selection_anchor = None;
 }
 

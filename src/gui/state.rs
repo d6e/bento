@@ -1,4 +1,5 @@
 use eframe::egui;
+use std::collections::HashSet;
 use std::path::PathBuf;
 use std::sync::mpsc;
 use std::sync::Arc;
@@ -179,6 +180,10 @@ pub struct RuntimeState {
 
     // Debug overlay
     pub show_debug_overlay: bool,
+
+    // Input sprite selection
+    pub selected_sprites: HashSet<usize>,
+    pub selection_anchor: Option<usize>,
 }
 
 impl Default for RuntimeState {
@@ -206,6 +211,9 @@ impl Default for RuntimeState {
             sprite_filter: String::new(),
 
             show_debug_overlay: false,
+
+            selected_sprites: HashSet::new(),
+            selection_anchor: None,
         }
     }
 }
