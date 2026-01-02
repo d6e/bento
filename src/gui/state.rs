@@ -127,7 +127,18 @@ impl AppConfig {
         self.trim.hash(&mut hasher);
         self.trim_margin.hash(&mut hasher);
         self.extrude.hash(&mut hasher);
-        std::mem::discriminant(&self.resize_mode).hash(&mut hasher);
+        // Hash resize_mode including inner values (f32 doesn't impl Hash, use bits)
+        match self.resize_mode {
+            ResizeMode::None => 0u8.hash(&mut hasher),
+            ResizeMode::Width(w) => {
+                1u8.hash(&mut hasher);
+                w.hash(&mut hasher);
+            }
+            ResizeMode::Scale(s) => {
+                2u8.hash(&mut hasher);
+                s.to_bits().hash(&mut hasher);
+            }
+        }
         std::mem::discriminant(&self.heuristic).hash(&mut hasher);
         std::mem::discriminant(&self.pack_mode).hash(&mut hasher);
         hasher.finish()
