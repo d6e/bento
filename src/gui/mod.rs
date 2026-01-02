@@ -1,34 +1,32 @@
+mod app;
+mod panels;
+pub mod state;
+
 use anyhow::Result;
 use eframe::egui;
 
-struct BentoApp;
+/// Check if a path has a supported image extension
+pub(crate) fn is_supported_image(path: &std::path::Path) -> bool {
+    const SUPPORTED_EXTENSIONS: &[&str] = &["png", "jpg", "jpeg", "gif", "bmp", "webp"];
 
-impl BentoApp {
-    fn new(_cc: &eframe::CreationContext<'_>) -> Self {
-        Self
-    }
-}
-
-impl eframe::App for BentoApp {
-    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        egui::CentralPanel::default().show(ctx, |_ui| {
-            // Empty for now
-        });
-    }
+    path.extension()
+        .and_then(|ext| ext.to_str())
+        .is_some_and(|ext| SUPPORTED_EXTENSIONS.contains(&ext.to_lowercase().as_str()))
 }
 
 pub fn run() -> Result<()> {
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
-            .with_inner_size([1024.0, 768.0])
-            .with_min_inner_size([640.0, 480.0]),
+            .with_inner_size([1200.0, 800.0])
+            .with_min_inner_size([800.0, 600.0])
+            .with_drag_and_drop(true),
         ..Default::default()
     };
 
     eframe::run_native(
         "Bento - Sprite Atlas Packer",
         options,
-        Box::new(|cc| Ok(Box::new(BentoApp::new(cc)))),
+        Box::new(|cc| Ok(Box::new(app::BentoApp::new(cc)))),
     )
     .map_err(|e| anyhow::anyhow!("Failed to run GUI: {}", e))
 }
