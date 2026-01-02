@@ -26,12 +26,32 @@ egui_extras = { version = "0.30", optional = true, features = ["image"] }
 rfd = { version = "0.15", optional = true }
 
 [lints.clippy]
+# Unsafe code documentation
 undocumented_unsafe_blocks = "deny"
 multiple_unsafe_ops_per_block = "deny"
 unnecessary_safety_comment = "warn"
 unnecessary_safety_doc = "warn"
+
+# Fallible operations
 unwrap_used = "warn"
 expect_used = "warn"
+panic = "warn"
+panic_in_result_fn = "warn"
+
+# Debug leftovers
+dbg_macro = "warn"
+todo = "warn"
+unimplemented = "warn"
+print_stdout = "warn"
+print_stderr = "warn"
+
+# Numeric safety
+cast_possible_truncation = "warn"
+cast_sign_loss = "warn"
+cast_lossless = "warn"
+
+# Error handling
+map_err_ignore = "warn"
 
 [lints.rust]
 unsafe_code = "warn"
