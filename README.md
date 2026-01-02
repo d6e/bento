@@ -1,6 +1,6 @@
 # Bento
 
-A fast sprite atlas packer with automatic trimming and multiple packing heuristics.
+A fast sprite atlas packer with automatic trimming and multiple packing heuristics. Includes both a CLI and an optional GUI.
 
 ## Features
 
@@ -12,6 +12,26 @@ A fast sprite atlas packer with automatic trimming and multiple packing heuristi
 - **Power-of-two** option for GPU compatibility
 - **Multi-atlas support** automatically splits sprites across multiple atlases when needed
 - **PNG compression** with oxipng for smaller file sizes
+- **GUI mode** for interactive atlas packing with real-time preview
+
+## GUI
+
+Build and run with the `gui` feature:
+
+```bash
+cargo run --features gui
+```
+
+Or run with no arguments to launch the GUI automatically.
+
+The GUI provides:
+
+- **Input panel** (left): Add files/folders via buttons or drag-and-drop, filter sprites by name, multi-select with Shift/Ctrl+click, configure output directory and format
+- **Settings panel** (right): All packing options (atlas size, padding, trimming, extrusion, resize, heuristics, compression)
+- **Preview panel** (center): Real-time atlas preview with zoom/pan, sprite tooltips, occupancy stats, estimated file size, and debug overlay
+- **Auto-repack**: Toggle to automatically repack when settings change
+
+Packing and export run in background threads with cancel support.
 
 ## Installation
 
@@ -22,7 +42,8 @@ cargo install --path .
 Or build from source:
 
 ```bash
-cargo build --release
+cargo build --release                # CLI only
+cargo build --release --features gui # CLI + GUI
 ```
 
 ## Usage
