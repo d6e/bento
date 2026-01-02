@@ -1,6 +1,8 @@
 pub mod atlas;
 pub mod cli;
 pub mod error;
+#[cfg(feature = "gui")]
+pub mod gui;
 pub mod output;
 pub mod packing;
 pub mod sprite;

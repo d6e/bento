@@ -17,11 +17,25 @@ fn main() {
 }
 
 fn run() -> Result<()> {
+    // Launch GUI if no arguments provided and gui feature is enabled
+    #[cfg(feature = "gui")]
+    if std::env::args().len() == 1 {
+        return bento::gui::run();
+    }
+
     let cli = CliArgs::parse();
+
+    // Handle GUI command
+    #[cfg(feature = "gui")]
+    if matches!(cli.command, Command::Gui) {
+        return bento::gui::run();
+    }
 
     // Extract common args from subcommand
     let args = match &cli.command {
         Command::Json(args) | Command::Godot(args) => args,
+        #[cfg(feature = "gui")]
+        Command::Gui => unreachable!(),
     };
 
     // Initialize logging
@@ -83,6 +97,8 @@ fn run() -> Result<()> {
                 atlases.iter().map(|a| a.sprites.len()).sum::<usize>()
             );
         }
+        #[cfg(feature = "gui")]
+        Command::Gui => unreachable!(),
     }
 
     info!("Done!");

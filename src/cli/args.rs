@@ -15,6 +15,9 @@ pub enum Command {
     Json(CommonArgs),
     /// Output individual Godot .tres files
     Godot(CommonArgs),
+    /// Launch the GUI
+    #[cfg(feature = "gui")]
+    Gui,
 }
 
 #[derive(Args, Debug, Clone)]
