@@ -172,11 +172,14 @@ pub fn settings_panel(ui: &mut egui::Ui, state: &mut AppState) {
                 egui::ComboBox::from_id_salt("pack_mode")
                     .selected_text(pack_mode_name(state.config.pack_mode))
                     .show_ui(ui, |ui| {
-                        ui.selectable_value(&mut state.config.pack_mode, PackMode::Single, "Single");
+                        ui.selectable_value(
+                            &mut state.config.pack_mode,
+                            PackMode::Single,
+                            "Single",
+                        );
                         ui.selectable_value(&mut state.config.pack_mode, PackMode::Best, "Best");
                     });
             });
-
         });
 
     // Output section
@@ -190,7 +193,10 @@ pub fn settings_panel(ui: &mut egui::Ui, state: &mut AppState) {
             let mut compress_checkbox = compress_enabled;
 
             ui.horizontal(|ui| {
-                if ui.checkbox(&mut compress_checkbox, "Compress PNG").changed() {
+                if ui
+                    .checkbox(&mut compress_checkbox, "Compress PNG")
+                    .changed()
+                {
                     state.config.compress = if compress_checkbox {
                         Some(CompressionLevel::Level(2))
                     } else {
@@ -225,7 +231,11 @@ pub fn settings_panel(ui: &mut egui::Ui, state: &mut AppState) {
                             CompressionLevel::Max
                         } else {
                             // selected is in range 0..=6 from the ComboBox options
-                            #[expect(clippy::cast_possible_truncation, clippy::cast_sign_loss, reason = "value is constrained to 0..=6")]
+                            #[expect(
+                                clippy::cast_possible_truncation,
+                                clippy::cast_sign_loss,
+                                reason = "value is constrained to 0..=6"
+                            )]
                             CompressionLevel::Level(selected as u8)
                         };
                     }

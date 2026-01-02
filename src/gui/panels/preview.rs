@@ -88,8 +88,7 @@ pub fn preview_panel(ui: &mut egui::Ui, state: &mut AppState) {
 
     // Preview area with zoom/pan
     let available = ui.available_size();
-    let (response, mut painter) =
-        ui.allocate_painter(available, egui::Sense::click_and_drag());
+    let (response, mut painter) = ui.allocate_painter(available, egui::Sense::click_and_drag());
     let rect = response.rect;
 
     // Apply fit-to-view if requested
@@ -322,7 +321,12 @@ fn format_file_size(bytes: usize) -> String {
 }
 
 /// Calculate zoom level that fits the atlas within the canvas with margin
-fn calculate_fit_zoom(atlas_width: u32, atlas_height: u32, canvas_size: egui::Vec2, margin: f32) -> f32 {
+fn calculate_fit_zoom(
+    atlas_width: u32,
+    atlas_height: u32,
+    canvas_size: egui::Vec2,
+    margin: f32,
+) -> f32 {
     let available_width = (canvas_size.x - margin * 2.0).max(1.0);
     let available_height = (canvas_size.y - margin * 2.0).max(1.0);
 

@@ -51,10 +51,7 @@ pub fn input_panel(ui: &mut egui::Ui, state: &mut AppState) {
     if !state.config.input_paths.is_empty() {
         // Clamp selection to valid indices
         let max_idx = state.config.input_paths.len();
-        state
-            .runtime
-            .selected_sprites
-            .retain(|&i| i < max_idx);
+        state.runtime.selected_sprites.retain(|&i| i < max_idx);
         if let Some(anchor) = state.runtime.selection_anchor
             && anchor >= max_idx
         {
@@ -136,9 +133,8 @@ pub fn input_panel(ui: &mut egui::Ui, state: &mut AppState) {
             let modifiers = ui.input(|i| i.modifiers);
 
             // Handle Delete/Backspace key (set flag, handle after loop)
-            let delete_pressed = ui.input(|i| {
-                i.key_pressed(egui::Key::Delete) || i.key_pressed(egui::Key::Backspace)
-            });
+            let delete_pressed = ui
+                .input(|i| i.key_pressed(egui::Key::Delete) || i.key_pressed(egui::Key::Backspace));
 
             let mut to_remove = None;
             let mut remove_selected = false;
@@ -411,4 +407,3 @@ fn center_rect_in(inner_size: egui::Vec2, outer: egui::Rect) -> egui::Rect {
     let offset = (outer.size() - inner_size) / 2.0;
     egui::Rect::from_min_size(outer.min + offset, inner_size)
 }
-

@@ -280,8 +280,13 @@ impl MaxRectsPacker {
         let total_area = u64::from(self.bin_width) * u64::from(self.bin_height);
         let free_area: u64 = self.free_rects.iter().map(|r| r.area()).sum();
         let used_area = total_area.saturating_sub(free_area);
-        #[expect(clippy::cast_precision_loss, reason = "approximation acceptable for occupancy display")]
-        { used_area as f64 / total_area as f64 }
+        #[expect(
+            clippy::cast_precision_loss,
+            reason = "approximation acceptable for occupancy display"
+        )]
+        {
+            used_area as f64 / total_area as f64
+        }
     }
 }
 

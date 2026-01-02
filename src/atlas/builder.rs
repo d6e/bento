@@ -1,5 +1,5 @@
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use anyhow::Result;
 use image::imageops;
@@ -309,8 +309,13 @@ impl AtlasBuilder {
             })
             .sum();
         let occupancy = if atlas_area > 0 {
-            #[expect(clippy::cast_precision_loss, reason = "approximation acceptable for occupancy")]
-            { sprite_area as f64 / atlas_area as f64 }
+            #[expect(
+                clippy::cast_precision_loss,
+                reason = "approximation acceptable for occupancy"
+            )]
+            {
+                sprite_area as f64 / atlas_area as f64
+            }
         } else {
             0.0
         };
@@ -379,10 +384,10 @@ impl AtlasBuilder {
             SpriteOrdering::ByDiagonal => {
                 // Sort by diagonal length (sqrt(w^2 + h^2)), largest first
                 indices.sort_by(|&a, &b| {
-                    let diag_sq_a =
-                        u64::from(sprites[a].width()).pow(2) + u64::from(sprites[a].height()).pow(2);
-                    let diag_sq_b =
-                        u64::from(sprites[b].width()).pow(2) + u64::from(sprites[b].height()).pow(2);
+                    let diag_sq_a = u64::from(sprites[a].width()).pow(2)
+                        + u64::from(sprites[a].height()).pow(2);
+                    let diag_sq_b = u64::from(sprites[b].width()).pow(2)
+                        + u64::from(sprites[b].height()).pow(2);
                     diag_sq_b.cmp(&diag_sq_a) // descending (compare squared to avoid sqrt)
                 });
             }

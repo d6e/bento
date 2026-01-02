@@ -104,7 +104,10 @@ fn sprite_to_json(sprite: &PackedSprite) -> JsonSprite {
         },
         trimmed: trim.was_trimmed(),
         // offset_x/offset_y are always >= 0 (pixels trimmed from left/top edge)
-        #[expect(clippy::cast_sign_loss, reason = "trim offsets are always non-negative")]
+        #[expect(
+            clippy::cast_sign_loss,
+            reason = "trim offsets are always non-negative"
+        )]
         sprite_source_size: Frame {
             x: trim.offset_x as u32,
             y: trim.offset_y as u32,

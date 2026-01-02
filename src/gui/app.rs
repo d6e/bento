@@ -1,7 +1,7 @@
 use eframe::egui;
+use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc;
-use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use super::state::{
@@ -411,9 +411,10 @@ impl BentoApp {
 
     /// Clean up thumbnails for paths no longer in input_paths
     fn cleanup_thumbnails(&mut self) {
-        self.state.runtime.thumbnails.retain(|path, _| {
-            self.state.config.input_paths.contains(path)
-        });
+        self.state
+            .runtime
+            .thumbnails
+            .retain(|path, _| self.state.config.input_paths.contains(path));
     }
 }
 
@@ -458,7 +459,11 @@ fn pack_atlases(config: &AppConfig, cancel_token: Arc<AtomicBool>) -> Result<Pac
         if cancel_token.load(Ordering::Relaxed) {
             return Err("cancelled".to_string());
         }
-        png_sizes.push(estimate_png_size(&atlas.image, config.opaque, config.compress));
+        png_sizes.push(estimate_png_size(
+            &atlas.image,
+            config.opaque,
+            config.compress,
+        ));
     }
 
     Ok(PackResult {
@@ -549,7 +554,11 @@ fn estimate_png_size(
 
 impl eframe::App for BentoApp {
     fn save(&mut self, storage: &mut dyn eframe::Storage) {
-        eframe::set_value(storage, LAST_INPUT_DIR_KEY, &self.state.runtime.last_input_dir);
+        eframe::set_value(
+            storage,
+            LAST_INPUT_DIR_KEY,
+            &self.state.runtime.last_input_dir,
+        );
     }
 
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
@@ -633,4 +642,3 @@ impl eframe::App for BentoApp {
         self.render_drop_overlay(ctx);
     }
 }
-

@@ -1,4 +1,4 @@
-use image::{imageops::FilterType, ImageReader, RgbaImage};
+use image::{ImageReader, RgbaImage, imageops::FilterType};
 use std::path::{Path, PathBuf};
 use std::sync::mpsc;
 
@@ -32,9 +32,7 @@ fn load_thumbnail(path: &Path) -> Option<RgbaImage> {
 
 /// Spawn background thread to load thumbnails for given paths
 /// Returns receiver for results
-pub fn spawn_thumbnail_loader(
-    paths: Vec<PathBuf>,
-) -> mpsc::Receiver<(PathBuf, Option<RgbaImage>)> {
+pub fn spawn_thumbnail_loader(paths: Vec<PathBuf>) -> mpsc::Receiver<(PathBuf, Option<RgbaImage>)> {
     let (tx, rx) = mpsc::channel();
 
     std::thread::spawn(move || {
