@@ -266,12 +266,29 @@ impl AtlasBuilder {
             }
         }
 
+        // Calculate occupancy based on actual cropped atlas size, not bin size
+        let atlas_area = u64::from(max_x) * u64::from(max_y);
+        let sprite_area: u64 = placements
+            .iter()
+            .map(|p| {
+                let padded_w = p.width + self.padding * 2 + self.extrude * 2;
+                let padded_h = p.height + self.padding * 2 + self.extrude * 2;
+                u64::from(padded_w) * u64::from(padded_h)
+            })
+            .sum();
+        let occupancy = if atlas_area > 0 {
+            #[expect(clippy::cast_precision_loss, reason = "approximation acceptable for occupancy")]
+            { sprite_area as f64 / atlas_area as f64 }
+        } else {
+            0.0
+        };
+
         PackingLayout {
             placements,
             unpacked_indices,
             max_x,
             max_y,
-            occupancy: packer.occupancy(),
+            occupancy,
         }
     }
 
