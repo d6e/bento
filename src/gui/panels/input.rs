@@ -161,7 +161,7 @@ pub fn input_panel(ui: &mut egui::Ui, state: &mut AppState) {
                     egui::Frame::none()
                 };
 
-                let row_rect = frame.show(ui, |ui| {
+                let row_response = frame.show(ui, |ui| {
                     ui.horizontal(|ui| {
                         // Remove button (x) for quick single removal
                         if ui.small_button("x").clicked() {
@@ -214,19 +214,22 @@ pub fn input_panel(ui: &mut egui::Ui, state: &mut AppState) {
                             }
                         }
 
-                        // Display filename with click sense
+                        // Display filename (no click sense, handled by row)
                         let filename = path
                             .file_name()
                             .map(|n| n.to_string_lossy().to_string())
                             .unwrap_or_else(|| path.display().to_string());
 
-                        let label = egui::Label::new(filename).sense(egui::Sense::click());
-                        ui.add(label)
+                        ui.label(filename);
                     })
                 });
 
-                // Handle row click for selection
-                if row_rect.inner.inner.clicked() {
+                // Make entire row clickable by interacting with the frame's rect
+                let row_rect = row_response.response.rect;
+                let row_id = ui.id().with(original_idx);
+                let row_interact = ui.interact(row_rect, row_id, egui::Sense::click());
+
+                if row_interact.clicked() {
                     handle_sprite_click(
                         &mut state.runtime.selected_sprites,
                         &mut state.runtime.selection_anchor,

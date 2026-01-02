@@ -300,20 +300,43 @@ impl BentoApp {
             return;
         }
 
-        // Only re-estimate if we have atlases
+        // Only start new estimation if we have atlases and no estimation is running
         let Some(atlases) = &self.state.runtime.atlases else {
             return;
         };
 
-        // Re-estimate PNG sizes with new export settings
+        if self.state.runtime.size_estimate_task.is_some() {
+            return;
+        }
+
+        // Spawn background thread to re-estimate PNG sizes
+        let atlases = atlases.clone();
         let opaque = self.state.config.opaque;
         let compress = self.state.config.compress;
-        self.state.runtime.atlas_png_sizes = atlases
-            .iter()
-            .map(|a| estimate_png_size(&a.image, opaque, compress))
-            .collect();
 
+        let (tx, rx) = mpsc::channel();
+        std::thread::spawn(move || {
+            let sizes: Vec<usize> = atlases
+                .iter()
+                .map(|a| estimate_png_size(&a.image, opaque, compress))
+                .collect();
+            let _ = tx.send(Ok(sizes));
+        });
+
+        self.state.runtime.size_estimate_task = Some(BackgroundTask::new(rx));
         self.state.runtime.last_export_hash = Some(current_export_hash);
+    }
+
+    /// Poll background size estimation task for completion
+    fn poll_size_estimate_task(&mut self) {
+        if let Some(task) = &self.state.runtime.size_estimate_task
+            && let Some(result) = task.poll()
+        {
+            self.state.runtime.size_estimate_task = None;
+            if let Ok(sizes) = result {
+                self.state.runtime.atlas_png_sizes = sizes;
+            }
+        }
     }
 
     /// Queue thumbnail loading for paths that aren't in the cache
@@ -536,6 +559,7 @@ impl eframe::App for BentoApp {
         // Poll background tasks
         self.poll_pack_task(ctx);
         self.poll_export_task();
+        self.poll_size_estimate_task();
 
         // Handle thumbnails
         self.queue_thumbnail_loading();
@@ -553,6 +577,7 @@ impl eframe::App for BentoApp {
             || self.state.runtime.export_task.is_some()
             || self.state.runtime.pending_repack_at.is_some()
             || self.state.runtime.thumbnail_receiver.is_some()
+            || self.state.runtime.size_estimate_task.is_some()
         {
             ctx.request_repaint();
         }

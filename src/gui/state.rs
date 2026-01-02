@@ -209,6 +209,8 @@ pub struct RuntimeState {
     pub atlas_textures: Vec<egui::TextureHandle>,
     // Estimated PNG file sizes (one per atlas)
     pub atlas_png_sizes: Vec<usize>,
+    // Background task for re-estimating PNG sizes when export settings change
+    pub size_estimate_task: Option<BackgroundTask<Vec<usize>>>,
 
     // Preview controls
     pub preview_zoom: f32,
@@ -252,6 +254,7 @@ impl Default for RuntimeState {
 
             atlas_textures: Vec::new(),
             atlas_png_sizes: Vec::new(),
+            size_estimate_task: None,
             preview_zoom: 1.0,
             preview_offset: egui::Vec2::ZERO,
             needs_fit_to_view: false,
