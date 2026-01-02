@@ -1,5 +1,9 @@
 # Bento
 
+[![CI](https://github.com/d6e/bento/actions/workflows/ci.yml/badge.svg)](https://github.com/d6e/bento/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Rust 2024](https://img.shields.io/badge/Rust-2024-orange.svg)](https://doc.rust-lang.org/edition-guide/rust-2024/)
+
 A fast sprite atlas packer with automatic trimming and multiple packing heuristics. Includes both a CLI and an optional GUI.
 
 ## Features
