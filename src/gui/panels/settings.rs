@@ -177,7 +177,6 @@ pub fn settings_panel(ui: &mut egui::Ui, state: &mut AppState) {
                     });
             });
 
-            ui.checkbox(&mut state.runtime.auto_repack, "Auto-repack on changes");
         });
 
     // Output section

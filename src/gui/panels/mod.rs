@@ -33,6 +33,8 @@ pub fn bottom_bar(ui: &mut egui::Ui, state: &mut AppState) -> BottomBarAction {
             action.pack_requested = true;
         }
 
+        ui.checkbox(&mut state.runtime.auto_repack, "Auto");
+
         if is_busy {
             ui.spinner();
         }
