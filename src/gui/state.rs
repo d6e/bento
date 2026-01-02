@@ -176,6 +176,9 @@ pub struct RuntimeState {
 
     // Sprite list filter
     pub sprite_filter: String,
+
+    // Debug overlay
+    pub show_debug_overlay: bool,
 }
 
 impl Default for RuntimeState {
@@ -201,6 +204,8 @@ impl Default for RuntimeState {
             last_input_dir: None,
 
             sprite_filter: String::new(),
+
+            show_debug_overlay: false,
         }
     }
 }

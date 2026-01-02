@@ -1,5 +1,6 @@
 use eframe::egui;
 
+use crate::atlas::Atlas;
 use crate::gui::state::AppState;
 
 /// Preview panel showing the packed atlas with zoom/pan support
@@ -66,6 +67,9 @@ pub fn preview_panel(ui: &mut egui::Ui, state: &mut AppState) {
             if ui.small_button("Reset View").clicked() {
                 state.runtime.needs_fit_to_view = true;
             }
+
+            // Debug overlay toggle
+            ui.checkbox(&mut state.runtime.show_debug_overlay, "Debug");
 
             // Zoom display
             ui.label(format!("{:.0}%", state.runtime.preview_zoom * 100.0));
@@ -142,6 +146,18 @@ pub fn preview_panel(ui: &mut egui::Ui, state: &mut AppState) {
         0.0,
         egui::Stroke::new(1.0, egui::Color32::from_gray(120)),
     );
+
+    // Draw debug overlay if enabled
+    if state.runtime.show_debug_overlay {
+        draw_debug_overlay(
+            &painter,
+            atlas,
+            img_rect,
+            zoom,
+            state.config.padding,
+            state.config.extrude,
+        );
+    }
 
     // Sprite hover tooltip
     if let Some(pointer_pos) = ui.input(|i| i.pointer.hover_pos()) {
@@ -310,4 +326,63 @@ fn calculate_fit_zoom(atlas_width: u32, atlas_height: u32, canvas_size: egui::Ve
 
     // Use the smaller zoom to ensure entire atlas fits
     zoom_x.min(zoom_y).clamp(0.1, 10.0)
+}
+
+/// Draw debug overlay showing sprite bounds, extrusion, and padding regions
+fn draw_debug_overlay(
+    painter: &egui::Painter,
+    atlas: &Atlas,
+    img_rect: egui::Rect,
+    zoom: f32,
+    padding: u32,
+    extrude: u32,
+) {
+    // Colors for different regions (semi-transparent)
+    let sprite_color = egui::Color32::from_rgba_unmultiplied(0, 255, 0, 180); // Green
+    let extrude_color = egui::Color32::from_rgba_unmultiplied(255, 165, 0, 120); // Orange
+    let padding_color = egui::Color32::from_rgba_unmultiplied(255, 0, 255, 80); // Magenta
+
+    let padding_f = padding as f32;
+    let extrude_f = extrude as f32;
+
+    for sprite in &atlas.sprites {
+        // Calculate screen coordinates for sprite content
+        let sprite_x = img_rect.left() + sprite.x as f32 * zoom;
+        let sprite_y = img_rect.top() + sprite.y as f32 * zoom;
+        let sprite_w = sprite.width as f32 * zoom;
+        let sprite_h = sprite.height as f32 * zoom;
+
+        // 1. Draw padding region (outermost) if padding > 0
+        if padding > 0 {
+            let padding_offset = (padding_f + extrude_f) * zoom;
+            let padding_rect = egui::Rect::from_min_size(
+                egui::pos2(sprite_x - padding_offset, sprite_y - padding_offset),
+                egui::vec2(
+                    sprite_w + 2.0 * padding_offset,
+                    sprite_h + 2.0 * padding_offset,
+                ),
+            );
+            painter.rect_stroke(padding_rect, 0.0, egui::Stroke::new(1.0, padding_color));
+        }
+
+        // 2. Draw extrusion region if extrude > 0
+        if extrude > 0 {
+            let extrude_offset = extrude_f * zoom;
+            let extrude_rect = egui::Rect::from_min_size(
+                egui::pos2(sprite_x - extrude_offset, sprite_y - extrude_offset),
+                egui::vec2(
+                    sprite_w + 2.0 * extrude_offset,
+                    sprite_h + 2.0 * extrude_offset,
+                ),
+            );
+            painter.rect_stroke(extrude_rect, 0.0, egui::Stroke::new(1.0, extrude_color));
+        }
+
+        // 3. Draw sprite content boundary (innermost)
+        let sprite_rect = egui::Rect::from_min_size(
+            egui::pos2(sprite_x, sprite_y),
+            egui::vec2(sprite_w, sprite_h),
+        );
+        painter.rect_stroke(sprite_rect, 0.0, egui::Stroke::new(1.5, sprite_color));
+    }
 }
