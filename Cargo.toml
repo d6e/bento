@@ -2,6 +2,7 @@
 name = "bento"
 version = "0.2.0"
 edition = "2024"
+rust-version = "1.85"
 description = "Texture packer for Godot 4.x"
 
 [features]
