@@ -8,9 +8,16 @@ pub fn preview_panel(ui: &mut egui::Ui, state: &mut AppState) {
 
     ui.add_space(4.0);
 
+    // Check if we're currently packing
+    let is_packing = state.runtime.pack_task.is_some();
+
     // Check if we have atlases to show
     let Some(atlases) = state.runtime.atlases.as_ref().filter(|a| !a.is_empty()) else {
-        show_empty_state(ui);
+        if is_packing {
+            show_packing_state(ui);
+        } else {
+            show_empty_state(ui);
+        }
         return;
     };
 
@@ -116,6 +123,13 @@ pub fn preview_panel(ui: &mut egui::Ui, state: &mut AppState) {
         egui::Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0)),
         egui::Color32::WHITE,
     );
+
+    // Draw border around atlas
+    painter.rect_stroke(
+        img_rect,
+        0.0,
+        egui::Stroke::new(1.0, egui::Color32::from_gray(120)),
+    );
 }
 
 fn show_empty_state(ui: &mut egui::Ui) {
@@ -131,6 +145,49 @@ fn show_empty_state(ui: &mut egui::Ui) {
         rect.center(),
         egui::Align2::CENTER_CENTER,
         "No atlas packed yet\n\nAdd images and click 'Pack Atlas'",
+        egui::FontId::default(),
+        egui::Color32::from_gray(100),
+    );
+}
+
+fn show_packing_state(ui: &mut egui::Ui) {
+    let available = ui.available_size();
+    let rect = ui.allocate_space(available).1;
+
+    // Draw placeholder background
+    ui.painter()
+        .rect_filled(rect, 4.0, egui::Color32::from_gray(30));
+
+    // Draw spinner
+    let center = rect.center();
+    let time = ui.input(|i| i.time);
+    let radius = 16.0;
+    let stroke_width = 3.0;
+
+    // Spinning arc
+    let start_angle = (time * 2.0) as f32;
+    let arc_length = std::f32::consts::PI * 1.5;
+
+    let points: Vec<egui::Pos2> = (0..32)
+        .map(|i| {
+            let angle = start_angle + (i as f32 / 31.0) * arc_length;
+            egui::pos2(
+                center.x + radius * angle.cos(),
+                center.y + radius * angle.sin(),
+            )
+        })
+        .collect();
+
+    ui.painter().add(egui::Shape::line(
+        points,
+        egui::Stroke::new(stroke_width, egui::Color32::from_gray(150)),
+    ));
+
+    // Text below spinner
+    ui.painter().text(
+        egui::pos2(center.x, center.y + 32.0),
+        egui::Align2::CENTER_CENTER,
+        "Packing...",
         egui::FontId::default(),
         egui::Color32::from_gray(100),
     );
