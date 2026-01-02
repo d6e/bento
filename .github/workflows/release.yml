@@ -11,23 +11,35 @@ env:
 
 jobs:
   build:
-    name: Build ${{ matrix.target }}
+    name: Build ${{ matrix.variant }} ${{ matrix.platform_name }}
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
+        target:
+          - x86_64-unknown-linux-gnu
+          - x86_64-apple-darwin
+          - aarch64-apple-darwin
+          - x86_64-pc-windows-msvc
+        variant:
+          - cli
+          - gui
         include:
           - target: x86_64-unknown-linux-gnu
             os: ubuntu-latest
             archive: tar.gz
+            platform_name: linux-x86_64
           - target: x86_64-apple-darwin
             os: macos-latest
             archive: tar.gz
+            platform_name: macos-x86_64
           - target: aarch64-apple-darwin
             os: macos-latest
             archive: tar.gz
+            platform_name: macos-aarch64
           - target: x86_64-pc-windows-msvc
             os: windows-latest
             archive: zip
+            platform_name: windows-x86_64
 
     steps:
       - uses: actions/checkout@v4
@@ -38,30 +50,61 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
         with:
-          key: ${{ matrix.target }}
+          key: ${{ matrix.target }}-${{ matrix.variant }}
+
+      - name: Install Linux GUI dependencies
+        if: matrix.os == 'ubuntu-latest' && matrix.variant == 'gui'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libxcb-render0-dev \
+            libxcb-shape0-dev \
+            libxcb-xfixes0-dev \
+            libxkbcommon-dev \
+            libgtk-3-dev
 
       - name: Build
-        run: cargo build --release --target ${{ matrix.target }}
+        run: cargo build --release --target ${{ matrix.target }} ${{ matrix.variant == 'gui' && '--features gui' || '' }}
+
+      - name: Rename GUI binary (Unix)
+        if: matrix.variant == 'gui' && matrix.os != 'windows-latest'
+        run: mv target/${{ matrix.target }}/release/bento target/${{ matrix.target }}/release/bento-gui
+
+      - name: Rename GUI binary (Windows)
+        if: matrix.variant == 'gui' && matrix.os == 'windows-latest'
+        run: mv target/${{ matrix.target }}/release/bento.exe target/${{ matrix.target }}/release/bento-gui.exe
+
+      - name: Set package info
+        id: pkg
+        shell: bash
+        run: |
+          if [ "${{ matrix.variant }}" = "gui" ]; then
+            echo "binary=bento-gui" >> $GITHUB_OUTPUT
+            echo "name=bento-gui-${{ github.ref_name }}-${{ matrix.platform_name }}" >> $GITHUB_OUTPUT
+          else
+            echo "binary=bento" >> $GITHUB_OUTPUT
+            echo "name=bento-${{ github.ref_name }}-${{ matrix.platform_name }}" >> $GITHUB_OUTPUT
+          fi
 
       - name: Package (Unix)
         if: matrix.os != 'windows-latest'
         run: |
           cd target/${{ matrix.target }}/release
-          tar czvf ../../../bento-${{ github.ref_name }}-${{ matrix.target }}.tar.gz bento
+          tar czvf ../../../${{ steps.pkg.outputs.name }}.tar.gz ${{ steps.pkg.outputs.binary }}
           cd -
 
       - name: Package (Windows)
         if: matrix.os == 'windows-latest'
         run: |
           cd target/${{ matrix.target }}/release
-          7z a ../../../bento-${{ github.ref_name }}-${{ matrix.target }}.zip bento.exe
+          7z a ../../../${{ steps.pkg.outputs.name }}.zip ${{ steps.pkg.outputs.binary }}.exe
           cd -
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: bento-${{ matrix.target }}
-          path: bento-${{ github.ref_name }}-${{ matrix.target }}.*
+          name: ${{ steps.pkg.outputs.name }}
+          path: ${{ steps.pkg.outputs.name }}.*
 
   release:
     name: Create Release
