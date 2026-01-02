@@ -99,10 +99,6 @@ impl BentoApp {
                         })
                         .collect();
 
-                    // Reset preview state
-                    self.state.runtime.preview_zoom = 1.0;
-                    self.state.runtime.preview_offset = egui::Vec2::ZERO;
-
                     // Store hash for auto-repack detection
                     self.state.runtime.last_packed_hash =
                         Some(self.state.config.pack_settings_hash());
