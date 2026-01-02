@@ -99,8 +99,12 @@ pub fn preview_panel(ui: &mut egui::Ui, state: &mut AppState) {
         state.runtime.needs_fit_to_view = false;
     }
 
-    // Draw checkerboard background
-    draw_checkerboard(&painter, rect);
+    // Draw background - solid black when opaque, checkerboard otherwise
+    if state.config.opaque {
+        painter.rect_filled(rect, 0.0, egui::Color32::BLACK);
+    } else {
+        draw_checkerboard(&painter, rect);
+    }
 
     // Handle zoom with scroll
     let scroll_delta = ui.input(|i| i.raw_scroll_delta.y);
