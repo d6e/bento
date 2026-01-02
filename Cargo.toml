@@ -24,3 +24,14 @@ oxipng = { version = "9", default-features = false, features = ["parallel", "zop
 eframe = { version = "0.30", optional = true }
 egui_extras = { version = "0.30", optional = true, features = ["image"] }
 rfd = { version = "0.15", optional = true }
+
+[lints.clippy]
+undocumented_unsafe_blocks = "deny"
+multiple_unsafe_ops_per_block = "deny"
+unnecessary_safety_comment = "warn"
+unnecessary_safety_doc = "warn"
+unwrap_used = "warn"
+expect_used = "warn"
+
+[lints.rust]
+unsafe_code = "warn"
