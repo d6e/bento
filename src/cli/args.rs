@@ -71,6 +71,14 @@ pub struct CommonArgs {
     #[arg(short, long)]
     pub verbose: bool,
 
+    /// Resize images to target width in pixels (preserves aspect ratio)
+    #[arg(long, value_name = "PIXELS", conflicts_with = "resize_scale")]
+    pub resize_width: Option<u32>,
+
+    /// Resize images by scale factor (e.g., 0.5 for half size)
+    #[arg(long, value_name = "FACTOR", conflicts_with = "resize_width")]
+    pub resize_scale: Option<f32>,
+
     /// Pack mode: single (use one ordering) or best (try multiple orderings)
     #[arg(long, value_enum, default_value = "single")]
     pub pack_mode: PackMode,

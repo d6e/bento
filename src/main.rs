@@ -43,7 +43,13 @@ fn run() -> Result<()> {
     }
 
     // Load sprites
-    let sprites = load_sprites(&args.input, !args.no_trim, args.trim_margin)?;
+    let sprites = load_sprites(
+        &args.input,
+        !args.no_trim,
+        args.trim_margin,
+        args.resize_width,
+        args.resize_scale,
+    )?;
     info!("Loaded {} sprites", sprites.len());
 
     // Build atlases

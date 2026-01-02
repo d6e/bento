@@ -5,7 +5,7 @@ use image::ImageReader;
 use log::info;
 use rayon::prelude::*;
 
-use super::{SourceSprite, TrimInfo, trim_sprite};
+use super::{SourceSprite, TrimInfo, resize_by_scale, resize_to_width, trim_sprite};
 use crate::error::BentoError;
 
 const SUPPORTED_EXTENSIONS: &[&str] = &["png", "jpg", "jpeg", "gif", "bmp", "webp"];
@@ -15,6 +15,8 @@ pub fn load_sprites(
     inputs: &[impl AsRef<Path>],
     trim: bool,
     trim_margin: u32,
+    resize_width: Option<u32>,
+    resize_scale: Option<f32>,
 ) -> Result<Vec<SourceSprite>> {
     let image_paths = collect_image_paths(inputs)?;
 
@@ -26,7 +28,7 @@ pub fn load_sprites(
 
     let sprites: Result<Vec<_>> = image_paths
         .par_iter()
-        .map(|path| load_single_sprite(path, trim, trim_margin))
+        .map(|path| load_single_sprite(path, trim, trim_margin, resize_width, resize_scale))
         .collect();
 
     let mut sprites = sprites?;
@@ -83,7 +85,13 @@ fn is_supported_image(path: &Path) -> bool {
         .unwrap_or(false)
 }
 
-fn load_single_sprite(path: &Path, trim: bool, trim_margin: u32) -> Result<SourceSprite> {
+fn load_single_sprite(
+    path: &Path,
+    trim: bool,
+    trim_margin: u32,
+    resize_width: Option<u32>,
+    resize_scale: Option<f32>,
+) -> Result<SourceSprite> {
     let img = ImageReader::open(path)
         .map_err(|e| BentoError::ImageLoad {
             path: path.to_path_buf(),
@@ -95,6 +103,13 @@ fn load_single_sprite(path: &Path, trim: bool, trim_margin: u32) -> Result<Sourc
             source: e,
         })?
         .into_rgba8();
+
+    // Resize if requested (before trimming)
+    let img = match (resize_width, resize_scale) {
+        (Some(w), None) => resize_to_width(img, w),
+        (None, Some(s)) => resize_by_scale(img, s),
+        _ => img,
+    };
 
     let name = path
         .file_stem()
