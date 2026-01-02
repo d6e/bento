@@ -163,8 +163,9 @@ impl BentoApp {
 
             match result {
                 Ok(()) => {
+                    let path = self.state.config.output_dir.display();
                     self.state.runtime.status = Status::Done {
-                        result: StatusResult::Success("Exported successfully".to_string()),
+                        result: StatusResult::Success(format!("Exported to {}", path)),
                         at: Instant::now(),
                     };
                 }
