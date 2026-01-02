@@ -1,4 +1,5 @@
 use eframe::egui;
+use std::sync::atomic::AtomicBool;
 use std::sync::mpsc;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -129,6 +130,10 @@ impl BentoApp {
                         at: Instant::now(),
                     };
                 }
+                Err(err) if err.contains("cancelled") => {
+                    // Cancelled - return to idle, discard results
+                    self.state.runtime.status = Status::Idle;
+                }
                 Err(err) => {
                     self.state.runtime.status = Status::Done {
                         result: StatusResult::Error(err),
@@ -144,22 +149,31 @@ impl BentoApp {
         // Clone config for the worker thread
         let config = self.state.config.clone();
 
-        // Set up channel
+        // Set up channel and cancel token
         let (tx, rx) = mpsc::channel();
+        let cancel_token = Arc::new(AtomicBool::new(false));
+        let token_clone = cancel_token.clone();
 
         // Spawn worker thread
         std::thread::spawn(move || {
-            let result = pack_atlases(&config);
+            let result = pack_atlases(&config, token_clone);
             let _ = tx.send(result);
         });
 
         // Update state
-        self.state.runtime.pack_task = Some(BackgroundTask::new(rx));
+        self.state.runtime.pack_task = Some(BackgroundTask::with_cancel_token(rx, cancel_token));
         self.state.runtime.status = Status::Working {
             operation: Operation::Packing,
             started_at: Instant::now(),
         };
         self.state.runtime.atlases = None; // Clear old atlases
+    }
+
+    /// Cancel the current packing operation
+    pub fn cancel_pack(&mut self) {
+        if let Some(task) = &self.state.runtime.pack_task {
+            task.cancel();
+        }
     }
 
     /// Poll background export task for completion
@@ -348,7 +362,7 @@ impl BentoApp {
 }
 
 /// Perform packing on a background thread
-fn pack_atlases(config: &AppConfig) -> Result<PackResult, String> {
+fn pack_atlases(config: &AppConfig, cancel_token: Arc<AtomicBool>) -> Result<PackResult, String> {
     if config.input_paths.is_empty() {
         return Err("No input files".to_string());
     }
@@ -377,6 +391,7 @@ fn pack_atlases(config: &AppConfig) -> Result<PackResult, String> {
         .power_of_two(config.pot)
         .extrude(config.extrude)
         .pack_mode(config.pack_mode)
+        .cancel_token(cancel_token)
         .build(sprites)
         .map_err(|e| e.to_string())?;
 
@@ -518,6 +533,9 @@ impl eframe::App for BentoApp {
         // Handle actions from bottom bar
         if action.pack_requested {
             self.start_pack();
+        }
+        if action.cancel_requested {
+            self.cancel_pack();
         }
         if action.export_requested {
             self.start_export();

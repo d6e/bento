@@ -40,4 +40,7 @@ pub enum BentoError {
 
     #[error("Input path does not exist: {0}")]
     InputNotFound(PathBuf),
+
+    #[error("Operation cancelled")]
+    Cancelled,
 }

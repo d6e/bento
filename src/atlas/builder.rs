@@ -1,3 +1,6 @@
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
+
 use anyhow::Result;
 use image::imageops;
 use log::{debug, info};
@@ -58,6 +61,7 @@ pub struct AtlasBuilder {
     pub power_of_two: bool,
     pub extrude: u32,
     pub pack_mode: PackMode,
+    cancel_token: Option<Arc<AtomicBool>>,
 }
 
 /// Intermediate placement info for a single sprite
@@ -115,6 +119,7 @@ impl AtlasBuilder {
             power_of_two: false,
             extrude: 0,
             pack_mode: PackMode::Single,
+            cancel_token: None,
         }
     }
 
@@ -141,6 +146,19 @@ impl AtlasBuilder {
     pub fn pack_mode(mut self, pack_mode: PackMode) -> Self {
         self.pack_mode = pack_mode;
         self
+    }
+
+    /// Set a cancellation token for aborting long-running pack operations
+    pub fn cancel_token(mut self, token: Arc<AtomicBool>) -> Self {
+        self.cancel_token = Some(token);
+        self
+    }
+
+    /// Check if cancellation has been requested
+    fn is_cancelled(&self) -> bool {
+        self.cancel_token
+            .as_ref()
+            .is_some_and(|t| t.load(Ordering::Relaxed))
     }
 
     /// Build atlases from the given sprites
@@ -170,6 +188,9 @@ impl AtlasBuilder {
         let mut remaining: Vec<_> = sprites.into_iter().collect();
 
         while !remaining.is_empty() {
+            if self.is_cancelled() {
+                return Err(BentoError::Cancelled.into());
+            }
             let atlas_index = atlases.len();
             let (atlas, unpacked) = self.pack_atlas(atlas_index, remaining)?;
             atlases.push(atlas);
@@ -204,6 +225,9 @@ impl AtlasBuilder {
 
                 let mut best: Option<(SpriteOrdering, PackingLayout)> = None;
                 for &ordering in orderings {
+                    if self.is_cancelled() {
+                        break;
+                    }
                     let order = self.sorted_indices(&sprites, ordering);
                     let layout = self.try_pack(&sprites, &order, index, self.heuristic);
 
@@ -240,6 +264,9 @@ impl AtlasBuilder {
         let mut max_y = 0u32;
 
         for &i in order {
+            if self.is_cancelled() {
+                break;
+            }
             let sprite = &sprites[i];
             let padded_w = sprite.width() + self.padding * 2 + self.extrude * 2;
             let padded_h = sprite.height() + self.padding * 2 + self.extrude * 2;
@@ -375,9 +402,15 @@ impl AtlasBuilder {
         };
 
         for &ordering in orderings {
+            if self.is_cancelled() {
+                break;
+            }
             let order = self.sorted_indices(sprites, ordering);
 
             for &heuristic in &ALL_HEURISTICS {
+                if self.is_cancelled() {
+                    break;
+                }
                 let layout = self.try_pack(sprites, &order, index, heuristic);
 
                 let dominated = best
@@ -767,6 +800,35 @@ mod tests {
             "pack_mode Best ({}) should pack more than Single ({}) for this case",
             best_packed,
             single_packed
+        );
+    }
+
+    #[test]
+    fn test_cancellation_returns_error() {
+        use std::sync::atomic::AtomicBool;
+
+        let sprites = vec![SourceSprite {
+            path: std::path::PathBuf::from("test.png"),
+            name: "test".to_string(),
+            image: image::RgbaImage::new(20, 20),
+            trim_info: TrimInfo::untrimmed(20, 20),
+        }];
+
+        // Set cancel token to true before building
+        let cancel_token = Arc::new(AtomicBool::new(true));
+
+        let builder = AtlasBuilder::new(256, 256)
+            .padding(1)
+            .cancel_token(cancel_token);
+
+        let result = builder.build(sprites);
+
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(
+            err.to_string().contains("cancelled"),
+            "Error should contain 'cancelled': {}",
+            err
         );
     }
 }

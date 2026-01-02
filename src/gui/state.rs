@@ -1,6 +1,7 @@
 use eframe::egui;
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -52,11 +53,32 @@ pub struct PackResult {
 /// Generic handle for background operations (packing, exporting)
 pub struct BackgroundTask<T> {
     receiver: mpsc::Receiver<Result<T, String>>,
+    cancel_token: Option<Arc<AtomicBool>>,
 }
 
 impl<T> BackgroundTask<T> {
     pub fn new(receiver: mpsc::Receiver<Result<T, String>>) -> Self {
-        Self { receiver }
+        Self {
+            receiver,
+            cancel_token: None,
+        }
+    }
+
+    pub fn with_cancel_token(
+        receiver: mpsc::Receiver<Result<T, String>>,
+        cancel_token: Arc<AtomicBool>,
+    ) -> Self {
+        Self {
+            receiver,
+            cancel_token: Some(cancel_token),
+        }
+    }
+
+    /// Request cancellation of the background task
+    pub fn cancel(&self) {
+        if let Some(token) = &self.cancel_token {
+            token.store(true, Ordering::Relaxed);
+        }
     }
 
     /// Non-blocking poll for result

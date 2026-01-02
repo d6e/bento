@@ -14,6 +14,7 @@ use super::state::{AppState, Operation, Status, StatusResult};
 #[derive(Default)]
 pub struct BottomBarAction {
     pub pack_requested: bool,
+    pub cancel_requested: bool,
     pub export_requested: bool,
 }
 
@@ -22,11 +23,25 @@ pub fn bottom_bar(ui: &mut egui::Ui, state: &mut AppState) -> BottomBarAction {
     let mut action = BottomBarAction::default();
 
     ui.horizontal(|ui| {
+        let is_packing = matches!(
+            state.runtime.status,
+            Status::Working {
+                operation: Operation::Packing,
+                ..
+            }
+        );
         let is_busy = matches!(state.runtime.status, Status::Working { .. });
         let has_files = !state.config.input_paths.is_empty();
 
-        // Pack button
-        if ui
+        // Pack/Cancel button
+        if is_packing {
+            if ui
+                .add(egui::Button::new("Cancel").fill(egui::Color32::from_rgb(180, 60, 60)))
+                .clicked()
+            {
+                action.cancel_requested = true;
+            }
+        } else if ui
             .add_enabled(!is_busy && has_files, egui::Button::new("Pack Atlas"))
             .clicked()
         {
