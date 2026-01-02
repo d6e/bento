@@ -10,6 +10,7 @@ use super::state::{
 use super::thumbnail::spawn_thumbnail_loader;
 use super::{is_supported_image, panels};
 use crate::atlas::{Atlas, AtlasBuilder};
+use crate::cli::CompressionLevel;
 use crate::output::{save_atlas_image, write_godot_resources, write_json};
 use crate::sprite::load_sprites;
 
@@ -380,7 +381,10 @@ fn pack_atlases(config: &AppConfig) -> Result<PackResult, String> {
         .map_err(|e| e.to_string())?;
 
     // Estimate PNG sizes on background thread to avoid blocking UI
-    let png_sizes: Vec<usize> = atlases.iter().map(|a| estimate_png_size(&a.image)).collect();
+    let png_sizes: Vec<usize> = atlases
+        .iter()
+        .map(|a| estimate_png_size(&a.image, config.opaque, config.compress))
+        .collect();
 
     Ok(PackResult {
         atlases: Arc::new(atlases),
@@ -417,26 +421,54 @@ fn export_atlases(atlases: &[Atlas], config: &AppConfig) -> Result<(), String> {
     Ok(())
 }
 
-/// Estimate PNG file size by encoding to memory
-fn estimate_png_size(image: &image::RgbaImage) -> usize {
+/// Estimate PNG file size by encoding to memory, optionally with compression
+fn estimate_png_size(
+    image: &image::RgbaImage,
+    opaque: bool,
+    compress: Option<CompressionLevel>,
+) -> usize {
     use image::codecs::png::PngEncoder;
-    use image::ImageEncoder;
+    use image::{DynamicImage, ImageEncoder};
     use std::io::Cursor;
 
     let mut buffer = Cursor::new(Vec::new());
-    let encoder = PngEncoder::new(&mut buffer);
-    if encoder
-        .write_image(
+
+    // Handle opaque conversion (RGB vs RGBA)
+    let encode_result = if opaque {
+        let rgb = DynamicImage::ImageRgba8(image.clone()).into_rgb8();
+        let encoder = PngEncoder::new(&mut buffer);
+        encoder.write_image(
+            rgb.as_raw(),
+            rgb.width(),
+            rgb.height(),
+            image::ExtendedColorType::Rgb8,
+        )
+    } else {
+        let encoder = PngEncoder::new(&mut buffer);
+        encoder.write_image(
             image.as_raw(),
             image.width(),
             image.height(),
             image::ExtendedColorType::Rgba8,
         )
-        .is_ok()
-    {
-        buffer.into_inner().len()
+    };
+
+    if encode_result.is_err() {
+        return 0;
+    }
+
+    // Apply compression if enabled
+    if let Some(level) = compress {
+        let opts = match level {
+            CompressionLevel::Level(n) => oxipng::Options::from_preset(n),
+            CompressionLevel::Max => oxipng::Options::max_compression(),
+        };
+        match oxipng::optimize_from_memory(&buffer.into_inner(), &opts) {
+            Ok(compressed) => compressed.len(),
+            Err(_) => 0,
+        }
     } else {
-        0
+        buffer.into_inner().len()
     }
 }
 
