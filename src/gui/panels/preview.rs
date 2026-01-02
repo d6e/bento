@@ -164,42 +164,42 @@ pub fn preview_panel(ui: &mut egui::Ui, state: &mut AppState) {
     }
 
     // Sprite hover tooltip
-    if let Some(pointer_pos) = ui.input(|i| i.pointer.hover_pos()) {
-        if img_rect.contains(pointer_pos) {
-            // Convert screen position to atlas coordinates
-            let atlas_x = (pointer_pos.x - img_rect.left()) / zoom;
-            let atlas_y = (pointer_pos.y - img_rect.top()) / zoom;
+    if let Some(pointer_pos) = ui.input(|i| i.pointer.hover_pos())
+        && img_rect.contains(pointer_pos)
+    {
+        // Convert screen position to atlas coordinates
+        let atlas_x = (pointer_pos.x - img_rect.left()) / zoom;
+        let atlas_y = (pointer_pos.y - img_rect.top()) / zoom;
 
-            // Find sprite under cursor
-            for sprite in &atlas.sprites {
-                let sprite_rect = egui::Rect::from_min_size(
-                    egui::pos2(sprite.x as f32, sprite.y as f32),
-                    egui::vec2(sprite.width as f32, sprite.height as f32),
-                );
+        // Find sprite under cursor
+        for sprite in &atlas.sprites {
+            let sprite_rect = egui::Rect::from_min_size(
+                egui::pos2(sprite.x as f32, sprite.y as f32),
+                egui::vec2(sprite.width as f32, sprite.height as f32),
+            );
 
-                if sprite_rect.contains(egui::pos2(atlas_x, atlas_y)) {
-                    // Build tooltip text
-                    let trim_info = &sprite.trim_info;
-                    let tooltip_text = if trim_info.was_trimmed() {
-                        format!(
-                            "{}\n{}x{} (trimmed from {}x{})\nOffset: ({}, {})",
-                            sprite.name,
-                            sprite.width,
-                            sprite.height,
-                            trim_info.source_width,
-                            trim_info.source_height,
-                            trim_info.offset_x,
-                            trim_info.offset_y
-                        )
-                    } else {
-                        format!("{}\n{}x{}", sprite.name, sprite.width, sprite.height)
-                    };
+            if sprite_rect.contains(egui::pos2(atlas_x, atlas_y)) {
+                // Build tooltip text
+                let trim_info = &sprite.trim_info;
+                let tooltip_text = if trim_info.was_trimmed() {
+                    format!(
+                        "{}\n{}x{} (trimmed from {}x{})\nOffset: ({}, {})",
+                        sprite.name,
+                        sprite.width,
+                        sprite.height,
+                        trim_info.source_width,
+                        trim_info.source_height,
+                        trim_info.offset_x,
+                        trim_info.offset_y
+                    )
+                } else {
+                    format!("{}\n{}x{}", sprite.name, sprite.width, sprite.height)
+                };
 
-                    response.clone().on_hover_ui_at_pointer(|ui| {
-                        ui.label(tooltip_text);
-                    });
-                    break;
-                }
+                response.clone().on_hover_ui_at_pointer(|ui| {
+                    ui.label(tooltip_text);
+                });
+                break;
             }
         }
     }
@@ -238,6 +238,7 @@ fn show_packing_state(ui: &mut egui::Ui) {
     let stroke_width = 3.0;
 
     // Spinning arc
+    #[allow(clippy::cast_possible_truncation)]
     let start_angle = (time * 2.0) as f32;
     let arc_length = std::f32::consts::PI * 1.5;
 

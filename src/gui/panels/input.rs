@@ -55,10 +55,10 @@ pub fn input_panel(ui: &mut egui::Ui, state: &mut AppState) {
             .runtime
             .selected_sprites
             .retain(|&i| i < max_idx);
-        if let Some(anchor) = state.runtime.selection_anchor {
-            if anchor >= max_idx {
-                state.runtime.selection_anchor = None;
-            }
+        if let Some(anchor) = state.runtime.selection_anchor
+            && anchor >= max_idx
+        {
+            state.runtime.selection_anchor = None;
         }
 
         ui.horizontal(|ui| {
@@ -212,9 +212,7 @@ pub fn input_panel(ui: &mut egui::Ui, state: &mut AppState) {
                         .unwrap_or_else(|| path.display().to_string());
 
                     let label = egui::Label::new(filename).sense(egui::Sense::click());
-                    let label_response = ui.add(label);
-
-                    label_response
+                    ui.add(label)
                 });
 
                 // Draw selection highlight behind the row
@@ -317,9 +315,8 @@ fn handle_sprite_click(
     clicked_index: usize,
     modifiers: egui::Modifiers,
 ) {
-    if modifiers.shift && anchor.is_some() {
+    if let Some(anchor_idx) = anchor.filter(|_| modifiers.shift) {
         // Shift+click: select range from anchor to clicked
-        let anchor_idx = anchor.unwrap();
         let (start, end) = if anchor_idx <= clicked_index {
             (anchor_idx, clicked_index)
         } else {

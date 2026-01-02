@@ -17,7 +17,9 @@ fn load_thumbnail(path: &Path) -> Option<RgbaImage> {
     // Calculate scale to fit within THUMBNAIL_SIZE x THUMBNAIL_SIZE
     let scale = (THUMBNAIL_SIZE as f32 / w as f32).min(THUMBNAIL_SIZE as f32 / h as f32);
 
+    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
     let new_width = ((w as f32 * scale).round() as u32).max(1);
+    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
     let new_height = ((h as f32 * scale).round() as u32).max(1);
 
     Some(image::imageops::resize(
