@@ -53,6 +53,10 @@ pub fn input_panel(ui: &mut egui::Ui, state: &mut AppState) {
             let mut to_remove = None;
             for (i, path) in state.config.input_paths.iter().enumerate() {
                 ui.horizontal(|ui| {
+                    if ui.small_button("x").clicked() {
+                        to_remove = Some(i);
+                    }
+
                     // Display filename only
                     let filename = path
                         .file_name()
@@ -60,12 +64,6 @@ pub fn input_panel(ui: &mut egui::Ui, state: &mut AppState) {
                         .unwrap_or_else(|| path.display().to_string());
 
                     ui.label(filename);
-
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        if ui.small_button("x").clicked() {
-                            to_remove = Some(i);
-                        }
-                    });
                 });
             }
             if let Some(i) = to_remove {
