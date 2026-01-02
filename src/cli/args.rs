@@ -117,7 +117,7 @@ impl std::str::FromStr for CompressionLevel {
             Ok(CompressionLevel::Max)
         } else {
             s.parse::<u8>()
-                .map_err(|_| format!("invalid compression level: {}", s))
+                .map_err(|_e| format!("invalid compression level: {}", s))
                 .and_then(|n| {
                     if n <= 6 {
                         Ok(CompressionLevel::Level(n))

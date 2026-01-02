@@ -11,6 +11,9 @@ use crate::atlas::{Atlas, AtlasBuilder};
 use crate::output::{save_atlas_image, write_godot_resources, write_json};
 use crate::sprite::load_sprites;
 
+/// Debounce delay for auto-repack (milliseconds)
+const AUTO_REPACK_DEBOUNCE_MS: u64 = 300;
+
 /// Main GUI application
 pub struct BentoApp {
     state: AppState,
@@ -99,6 +102,10 @@ impl BentoApp {
                     // Reset preview state
                     self.state.runtime.preview_zoom = 1.0;
                     self.state.runtime.preview_offset = egui::Vec2::ZERO;
+
+                    // Store hash for auto-repack detection
+                    self.state.runtime.last_packed_hash =
+                        Some(self.state.config.pack_settings_hash());
 
                     self.state.runtime.atlases = Some(atlases);
                     self.state.runtime.selected_atlas = 0;
@@ -199,6 +206,56 @@ impl BentoApp {
             started_at: Instant::now(),
         };
     }
+
+    /// Handle debounced auto-repack when settings change
+    fn handle_auto_repack(&mut self) {
+        // Skip if auto-repack is disabled or we're already busy
+        if !self.state.runtime.auto_repack {
+            self.state.runtime.pending_repack_at = None;
+            return;
+        }
+
+        if self.state.runtime.pack_task.is_some() || self.state.runtime.export_task.is_some() {
+            return;
+        }
+
+        // Need files to pack
+        if self.state.config.input_paths.is_empty() {
+            self.state.runtime.pending_repack_at = None;
+            return;
+        }
+
+        let current_hash = self.state.config.pack_settings_hash();
+
+        // Check if settings changed since last pack
+        let settings_changed = self
+            .state
+            .runtime
+            .last_packed_hash
+            .is_none_or(|h| h != current_hash);
+
+        if settings_changed {
+            // Schedule or check pending repack
+            match self.state.runtime.pending_repack_at {
+                Some(pending_at) if Instant::now() >= pending_at => {
+                    // Debounce period elapsed, trigger repack
+                    self.state.runtime.pending_repack_at = None;
+                    self.start_pack();
+                }
+                Some(_) => {
+                    // Still waiting for debounce
+                }
+                None => {
+                    // Schedule a repack after debounce delay
+                    self.state.runtime.pending_repack_at =
+                        Some(Instant::now() + Duration::from_millis(AUTO_REPACK_DEBOUNCE_MS));
+                }
+            }
+        } else {
+            // Settings match last pack, clear any pending repack
+            self.state.runtime.pending_repack_at = None;
+        }
+    }
 }
 
 /// Perform packing on a background thread
@@ -275,8 +332,14 @@ impl eframe::App for BentoApp {
         self.poll_pack_task(ctx);
         self.poll_export_task();
 
-        // Request repaint if we have an active task (to poll again)
-        if self.state.runtime.pack_task.is_some() || self.state.runtime.export_task.is_some() {
+        // Handle auto-repack (debounced)
+        self.handle_auto_repack();
+
+        // Request repaint if we have an active task or pending repack
+        if self.state.runtime.pack_task.is_some()
+            || self.state.runtime.export_task.is_some()
+            || self.state.runtime.pending_repack_at.is_some()
+        {
             ctx.request_repaint();
         }
 

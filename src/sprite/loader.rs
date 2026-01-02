@@ -34,8 +34,8 @@ pub fn load_sprites(
     let mut sprites = sprites?;
     sprites.sort_by(|a, b| {
         // Sort by area descending for better packing
-        let area_a = a.width() as u64 * a.height() as u64;
-        let area_b = b.width() as u64 * b.height() as u64;
+        let area_a = u64::from(a.width()) * u64::from(a.height());
+        let area_b = u64::from(b.width()) * u64::from(b.height());
         area_b.cmp(&area_a)
     });
 

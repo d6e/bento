@@ -176,6 +176,8 @@ pub fn settings_panel(ui: &mut egui::Ui, state: &mut AppState) {
                         ui.selectable_value(&mut state.config.pack_mode, PackMode::Best, "Best");
                     });
             });
+
+            ui.checkbox(&mut state.runtime.auto_repack, "Auto-repack on changes");
         });
 
     // Output section
@@ -202,7 +204,7 @@ pub fn settings_panel(ui: &mut egui::Ui, state: &mut AppState) {
                 ui.horizontal(|ui| {
                     ui.label("Level:");
                     let current = match level {
-                        CompressionLevel::Level(n) => *n as i32,
+                        CompressionLevel::Level(n) => i32::from(*n),
                         CompressionLevel::Max => 7,
                     };
 
@@ -223,6 +225,8 @@ pub fn settings_panel(ui: &mut egui::Ui, state: &mut AppState) {
                         *level = if selected == 7 {
                             CompressionLevel::Max
                         } else {
+                            // selected is in range 0..=6 from the ComboBox options
+                            #[expect(clippy::cast_possible_truncation, clippy::cast_sign_loss, reason = "value is constrained to 0..=6")]
                             CompressionLevel::Level(selected as u8)
                         };
                     }

@@ -93,8 +93,8 @@ impl PackingLayout {
         }
 
         // Same sprite count - prefer smaller atlas area
-        let self_area = self.max_x as u64 * self.max_y as u64;
-        let other_area = other.max_x as u64 * other.max_y as u64;
+        let self_area = u64::from(self.max_x) * u64::from(self.max_y);
+        let other_area = u64::from(other.max_x) * u64::from(other.max_y);
 
         if self_area != other_area {
             return self_area < other_area;
@@ -215,6 +215,8 @@ impl AtlasBuilder {
                     }
                 }
 
+                // Orderings slice is non-empty (contains at least Original)
+                #[expect(clippy::expect_used, reason = "orderings is non-empty")]
                 let (ordering, layout) = best.expect("at least one ordering should be tried");
                 (self.heuristic, ordering, layout)
             };
@@ -281,15 +283,15 @@ impl AtlasBuilder {
             SpriteOrdering::Original => {}
             SpriteOrdering::ByArea => {
                 indices.sort_by(|&a, &b| {
-                    let area_a = sprites[a].width() as u64 * sprites[a].height() as u64;
-                    let area_b = sprites[b].width() as u64 * sprites[b].height() as u64;
+                    let area_a = u64::from(sprites[a].width()) * u64::from(sprites[a].height());
+                    let area_b = u64::from(sprites[b].width()) * u64::from(sprites[b].height());
                     area_b.cmp(&area_a) // descending
                 });
             }
             SpriteOrdering::ByPerimeter => {
                 indices.sort_by(|&a, &b| {
-                    let perim_a = sprites[a].width() as u64 + sprites[a].height() as u64;
-                    let perim_b = sprites[b].width() as u64 + sprites[b].height() as u64;
+                    let perim_a = u64::from(sprites[a].width()) + u64::from(sprites[a].height());
+                    let perim_b = u64::from(sprites[b].width()) + u64::from(sprites[b].height());
                     perim_b.cmp(&perim_a) // descending
                 });
             }
@@ -313,10 +315,10 @@ impl AtlasBuilder {
             SpriteOrdering::ByWidthHeightRatio => {
                 // Sort by how far the aspect ratio is from 1:1 (most extreme first)
                 indices.sort_by(|&a, &b| {
-                    let w_a = sprites[a].width().max(1) as f64;
-                    let h_a = sprites[a].height().max(1) as f64;
-                    let w_b = sprites[b].width().max(1) as f64;
-                    let h_b = sprites[b].height().max(1) as f64;
+                    let w_a = f64::from(sprites[a].width().max(1));
+                    let h_a = f64::from(sprites[a].height().max(1));
+                    let w_b = f64::from(sprites[b].width().max(1));
+                    let h_b = f64::from(sprites[b].height().max(1));
                     // Ratio is max/min, so always >= 1.0. Higher = more extreme.
                     let ratio_a = w_a.max(h_a) / w_a.min(h_a);
                     let ratio_b = w_b.max(h_b) / w_b.min(h_b);
@@ -329,9 +331,9 @@ impl AtlasBuilder {
                 // Sort by diagonal length (sqrt(w^2 + h^2)), largest first
                 indices.sort_by(|&a, &b| {
                     let diag_sq_a =
-                        (sprites[a].width() as u64).pow(2) + (sprites[a].height() as u64).pow(2);
+                        u64::from(sprites[a].width()).pow(2) + u64::from(sprites[a].height()).pow(2);
                     let diag_sq_b =
-                        (sprites[b].width() as u64).pow(2) + (sprites[b].height() as u64).pow(2);
+                        u64::from(sprites[b].width()).pow(2) + u64::from(sprites[b].height()).pow(2);
                     diag_sq_b.cmp(&diag_sq_a) // descending (compare squared to avoid sqrt)
                 });
             }
@@ -379,6 +381,8 @@ impl AtlasBuilder {
             }
         }
 
+        // ALL_HEURISTICS and orderings are non-empty
+        #[expect(clippy::expect_used, reason = "heuristics and orderings are non-empty")]
         best.expect("at least one heuristic should be tried")
     }
 
@@ -409,6 +413,8 @@ impl AtlasBuilder {
 
         // Render packed sprites
         for placement in layout.placements {
+            // Each sprite_index appears exactly once in placements
+            #[expect(clippy::expect_used, reason = "sprite indices are unique")]
             let source = sprites[placement.sprite_index]
                 .take()
                 .expect("sprite should exist");
@@ -420,8 +426,8 @@ impl AtlasBuilder {
             imageops::overlay(
                 &mut atlas.image,
                 &source.image,
-                placement.x as i64,
-                placement.y as i64,
+                i64::from(placement.x),
+                i64::from(placement.y),
             );
 
             atlas.sprites.push(PackedSprite {

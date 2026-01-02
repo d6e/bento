@@ -18,7 +18,7 @@ impl Rect {
     }
 
     pub fn area(&self) -> u64 {
-        self.width as u64 * self.height as u64
+        u64::from(self.width) * u64::from(self.height)
     }
 
     /// Check if this rectangle intersects with another

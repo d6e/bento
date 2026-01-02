@@ -62,27 +62,27 @@ impl MaxRectsPacker {
     ) -> (i64, i64) {
         match heuristic {
             PackingHeuristic::BestShortSideFit => {
-                let leftover_h = (free_rect.width - width) as i64;
-                let leftover_v = (free_rect.height - height) as i64;
+                let leftover_h = i64::from(free_rect.width - width);
+                let leftover_v = i64::from(free_rect.height - height);
                 let short = leftover_h.min(leftover_v);
                 let long = leftover_h.max(leftover_v);
                 (short, long)
             }
             PackingHeuristic::BestLongSideFit => {
-                let leftover_h = (free_rect.width - width) as i64;
-                let leftover_v = (free_rect.height - height) as i64;
+                let leftover_h = i64::from(free_rect.width - width);
+                let leftover_v = i64::from(free_rect.height - height);
                 let short = leftover_h.min(leftover_v);
                 let long = leftover_h.max(leftover_v);
                 (long, short)
             }
             PackingHeuristic::BestAreaFit => {
                 let area = free_rect.area() as i64;
-                let short = (free_rect.width - width).min(free_rect.height - height) as i64;
+                let short = i64::from((free_rect.width - width).min(free_rect.height - height));
                 (area, short)
             }
             PackingHeuristic::BottomLeft => {
-                let top = (free_rect.y + height) as i64;
-                let left = free_rect.x as i64;
+                let top = i64::from(free_rect.y + height);
+                let left = i64::from(free_rect.x);
                 (top, left)
             }
             PackingHeuristic::ContactPoint => {
@@ -92,8 +92,8 @@ impl MaxRectsPacker {
             }
             PackingHeuristic::Best => {
                 // Best mode is handled at a higher level; fallback to BestShortSideFit
-                let leftover_h = (free_rect.width - width) as i64;
-                let leftover_v = (free_rect.height - height) as i64;
+                let leftover_h = i64::from(free_rect.width - width);
+                let leftover_v = i64::from(free_rect.height - height);
                 let short = leftover_h.min(leftover_v);
                 let long = leftover_h.max(leftover_v);
                 (short, long)
@@ -107,16 +107,16 @@ impl MaxRectsPacker {
 
         // Contact with bin edges
         if x == 0 {
-            score += height as i64;
+            score += i64::from(height);
         }
         if y == 0 {
-            score += width as i64;
+            score += i64::from(width);
         }
         if x + width == self.bin_width {
-            score += height as i64;
+            score += i64::from(height);
         }
         if y + height == self.bin_height {
-            score += width as i64;
+            score += i64::from(width);
         }
 
         // Contact with placed rectangles
@@ -127,7 +127,7 @@ impl MaxRectsPacker {
                 let overlap_start = y.max(placed.y);
                 let overlap_end = (y + height).min(placed.y + placed.height);
                 if overlap_end > overlap_start {
-                    score += (overlap_end - overlap_start) as i64;
+                    score += i64::from(overlap_end - overlap_start);
                 }
             }
             // Check if vertically adjacent (top or bottom edge touching)
@@ -136,7 +136,7 @@ impl MaxRectsPacker {
                 let overlap_start = x.max(placed.x);
                 let overlap_end = (x + width).min(placed.x + placed.width);
                 if overlap_end > overlap_start {
-                    score += (overlap_end - overlap_start) as i64;
+                    score += i64::from(overlap_end - overlap_start);
                 }
             }
         }
@@ -277,10 +277,11 @@ impl MaxRectsPacker {
 
     /// Get packing efficiency as a ratio (0.0 to 1.0)
     pub fn occupancy(&self) -> f64 {
-        let total_area = self.bin_width as u64 * self.bin_height as u64;
+        let total_area = u64::from(self.bin_width) * u64::from(self.bin_height);
         let free_area: u64 = self.free_rects.iter().map(|r| r.area()).sum();
         let used_area = total_area.saturating_sub(free_area);
-        used_area as f64 / total_area as f64
+        #[expect(clippy::cast_precision_loss, reason = "approximation acceptable for occupancy display")]
+        { used_area as f64 / total_area as f64 }
     }
 }
 
