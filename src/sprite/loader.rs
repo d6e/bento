@@ -1,4 +1,6 @@
 use std::path::Path;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 
 use anyhow::{Context, Result};
 use image::ImageReader;
@@ -17,6 +19,7 @@ pub fn load_sprites(
     trim_margin: u32,
     resize_width: Option<u32>,
     resize_scale: Option<f32>,
+    cancel_token: Option<&Arc<AtomicBool>>,
 ) -> Result<Vec<SourceSprite>> {
     let image_paths = collect_image_paths(inputs)?;
 
@@ -28,7 +31,15 @@ pub fn load_sprites(
 
     let sprites: Result<Vec<_>> = image_paths
         .par_iter()
-        .map(|path| load_single_sprite(path, trim, trim_margin, resize_width, resize_scale))
+        .map(|path| {
+            // Check for cancellation before loading each image
+            if let Some(token) = cancel_token {
+                if token.load(Ordering::Relaxed) {
+                    return Err(BentoError::Cancelled.into());
+                }
+            }
+            load_single_sprite(path, trim, trim_margin, resize_width, resize_scale)
+        })
         .collect();
 
     let mut sprites = sprites?;

@@ -1,5 +1,5 @@
 use eframe::egui;
-use std::sync::atomic::AtomicBool;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -407,13 +407,14 @@ fn pack_atlases(config: &AppConfig, cancel_token: Arc<AtomicBool>) -> Result<Pac
         ResizeMode::Scale(s) => (None, Some(s)),
     };
 
-    // Load sprites
+    // Load sprites (check cancellation during load)
     let sprites = load_sprites(
         &config.input_paths,
         config.trim,
         config.trim_margin,
         resize_width,
         resize_scale,
+        Some(&cancel_token),
     )
     .map_err(|e| e.to_string())?;
 
@@ -424,15 +425,18 @@ fn pack_atlases(config: &AppConfig, cancel_token: Arc<AtomicBool>) -> Result<Pac
         .power_of_two(config.pot)
         .extrude(config.extrude)
         .pack_mode(config.pack_mode)
-        .cancel_token(cancel_token)
+        .cancel_token(cancel_token.clone())
         .build(sprites)
         .map_err(|e| e.to_string())?;
 
-    // Estimate PNG sizes on background thread to avoid blocking UI
-    let png_sizes: Vec<usize> = atlases
-        .iter()
-        .map(|a| estimate_png_size(&a.image, config.opaque, config.compress))
-        .collect();
+    // Estimate PNG sizes on background thread (check cancellation)
+    let mut png_sizes = Vec::with_capacity(atlases.len());
+    for atlas in &atlases {
+        if cancel_token.load(Ordering::Relaxed) {
+            return Err("cancelled".to_string());
+        }
+        png_sizes.push(estimate_png_size(&atlas.image, config.opaque, config.compress));
+    }
 
     Ok(PackResult {
         atlases: Arc::new(atlases),

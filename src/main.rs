@@ -63,6 +63,7 @@ fn run() -> Result<()> {
         args.trim_margin,
         args.resize_width,
         args.resize_scale,
+        None, // No cancellation for CLI
     )?;
     info!("Loaded {} sprites", sprites.len());
 
