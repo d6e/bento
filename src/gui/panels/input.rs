@@ -152,80 +152,81 @@ pub fn input_panel(ui: &mut egui::Ui, state: &mut AppState) {
             for (original_idx, path) in &filtered {
                 let is_selected = state.runtime.selected_sprites.contains(original_idx);
 
-                // Create a frame for the row
-                let row_rect = ui.horizontal(|ui| {
-                    // Remove button (x) for quick single removal
-                    if ui.small_button("x").clicked() {
-                        to_remove = Some(*original_idx);
-                    }
+                // Use Frame to draw selection background before content
+                let frame = if is_selected {
+                    egui::Frame::none()
+                        .fill(ui.visuals().selection.bg_fill)
+                        .rounding(2.0)
+                } else {
+                    egui::Frame::none()
+                };
 
-                    // Thumbnail
-                    let (thumb_rect, _) = ui.allocate_exact_size(
-                        egui::vec2(thumb_size, thumb_size),
-                        egui::Sense::hover(),
-                    );
-
-                    match state.runtime.thumbnails.get(*path) {
-                        Some(ThumbnailState::Loaded(texture)) => {
-                            // Center the texture within the allocated rect
-                            let tex_size = texture.size_vec2();
-                            let centered_rect = center_rect_in(tex_size, thumb_rect);
-                            ui.painter().image(
-                                texture.id(),
-                                centered_rect,
-                                egui::Rect::from_min_max(
-                                    egui::pos2(0.0, 0.0),
-                                    egui::pos2(1.0, 1.0),
-                                ),
-                                egui::Color32::WHITE,
-                            );
+                let row_rect = frame.show(ui, |ui| {
+                    ui.horizontal(|ui| {
+                        // Remove button (x) for quick single removal
+                        if ui.small_button("x").clicked() {
+                            to_remove = Some(*original_idx);
                         }
-                        Some(ThumbnailState::Loading) => {
-                            // Show loading placeholder
-                            ui.painter().rect_filled(
-                                thumb_rect,
-                                2.0,
-                                egui::Color32::from_gray(60),
-                            );
-                        }
-                        Some(ThumbnailState::Failed) | None => {
-                            // Show error/missing placeholder
-                            ui.painter().rect_filled(
-                                thumb_rect,
-                                2.0,
-                                egui::Color32::from_gray(40),
-                            );
-                            ui.painter().text(
-                                thumb_rect.center(),
-                                egui::Align2::CENTER_CENTER,
-                                "?",
-                                egui::FontId::default(),
-                                egui::Color32::from_gray(80),
-                            );
-                        }
-                    }
 
-                    // Display filename with click sense
-                    let filename = path
-                        .file_name()
-                        .map(|n| n.to_string_lossy().to_string())
-                        .unwrap_or_else(|| path.display().to_string());
+                        // Thumbnail
+                        let (thumb_rect, _) = ui.allocate_exact_size(
+                            egui::vec2(thumb_size, thumb_size),
+                            egui::Sense::hover(),
+                        );
 
-                    let label = egui::Label::new(filename).sense(egui::Sense::click());
-                    ui.add(label)
+                        match state.runtime.thumbnails.get(*path) {
+                            Some(ThumbnailState::Loaded(texture)) => {
+                                // Center the texture within the allocated rect
+                                let tex_size = texture.size_vec2();
+                                let centered_rect = center_rect_in(tex_size, thumb_rect);
+                                ui.painter().image(
+                                    texture.id(),
+                                    centered_rect,
+                                    egui::Rect::from_min_max(
+                                        egui::pos2(0.0, 0.0),
+                                        egui::pos2(1.0, 1.0),
+                                    ),
+                                    egui::Color32::WHITE,
+                                );
+                            }
+                            Some(ThumbnailState::Loading) => {
+                                // Show loading placeholder
+                                ui.painter().rect_filled(
+                                    thumb_rect,
+                                    2.0,
+                                    egui::Color32::from_gray(60),
+                                );
+                            }
+                            Some(ThumbnailState::Failed) | None => {
+                                // Show error/missing placeholder
+                                ui.painter().rect_filled(
+                                    thumb_rect,
+                                    2.0,
+                                    egui::Color32::from_gray(40),
+                                );
+                                ui.painter().text(
+                                    thumb_rect.center(),
+                                    egui::Align2::CENTER_CENTER,
+                                    "?",
+                                    egui::FontId::default(),
+                                    egui::Color32::from_gray(80),
+                                );
+                            }
+                        }
+
+                        // Display filename with click sense
+                        let filename = path
+                            .file_name()
+                            .map(|n| n.to_string_lossy().to_string())
+                            .unwrap_or_else(|| path.display().to_string());
+
+                        let label = egui::Label::new(filename).sense(egui::Sense::click());
+                        ui.add(label)
+                    })
                 });
 
-                // Draw selection highlight behind the row
-                if is_selected {
-                    ui.painter().rect_filled(
-                        row_rect.response.rect,
-                        2.0,
-                        ui.visuals().selection.bg_fill,
-                    );
-                }
-
                 // Handle row click for selection
-                if row_rect.inner.clicked() {
+                if row_rect.inner.inner.clicked() {
                     handle_sprite_click(
                         &mut state.runtime.selected_sprites,
                         &mut state.runtime.selection_anchor,
