@@ -180,7 +180,16 @@ impl AppConfig {
         }
         std::mem::discriminant(&self.heuristic).hash(&mut hasher);
         std::mem::discriminant(&self.pack_mode).hash(&mut hasher);
-        // Export settings that affect preview (PNG size estimation)
+        hasher.finish()
+    }
+
+    /// Hash of export settings that affect PNG output but not packing layout
+    /// Used to detect when PNG sizes need re-estimation
+    pub fn export_settings_hash(&self) -> u64 {
+        use std::collections::hash_map::DefaultHasher;
+        use std::hash::{Hash, Hasher};
+
+        let mut hasher = DefaultHasher::new();
         self.opaque.hash(&mut hasher);
         std::mem::discriminant(&self.compress).hash(&mut hasher);
         if let Some(level) = &self.compress {
@@ -214,6 +223,7 @@ pub struct RuntimeState {
     // Auto-repack tracking
     pub auto_repack: bool,
     pub last_packed_hash: Option<u64>,
+    pub last_export_hash: Option<u64>,
     pub pending_repack_at: Option<Instant>,
 
     // Persisted UI state
@@ -252,6 +262,7 @@ impl Default for RuntimeState {
 
             auto_repack: true,
             last_packed_hash: None,
+            last_export_hash: None,
             pending_repack_at: None,
 
             last_input_dir: None,

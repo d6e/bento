@@ -114,9 +114,11 @@ impl BentoApp {
                     // Use pre-computed PNG sizes from background thread
                     self.state.runtime.atlas_png_sizes = pack_result.png_sizes;
 
-                    // Store hash for auto-repack detection
+                    // Store hashes for auto-repack detection
                     self.state.runtime.last_packed_hash =
                         Some(self.state.config.pack_settings_hash());
+                    self.state.runtime.last_export_hash =
+                        Some(self.state.config.export_settings_hash());
 
                     self.state.runtime.atlases = Some(pack_result.atlases);
                     self.state.runtime.selected_atlas = 0;
@@ -281,6 +283,37 @@ impl BentoApp {
             // Settings match last pack, clear any pending repack
             self.state.runtime.pending_repack_at = None;
         }
+    }
+
+    /// Re-estimate PNG sizes when export settings change without triggering a full rebuild
+    fn handle_export_settings_change(&mut self) {
+        let current_export_hash = self.state.config.export_settings_hash();
+
+        // Check if export settings changed since last estimation
+        let export_changed = self
+            .state
+            .runtime
+            .last_export_hash
+            .is_none_or(|h| h != current_export_hash);
+
+        if !export_changed {
+            return;
+        }
+
+        // Only re-estimate if we have atlases
+        let Some(atlases) = &self.state.runtime.atlases else {
+            return;
+        };
+
+        // Re-estimate PNG sizes with new export settings
+        let opaque = self.state.config.opaque;
+        let compress = self.state.config.compress;
+        self.state.runtime.atlas_png_sizes = atlases
+            .iter()
+            .map(|a| estimate_png_size(&a.image, opaque, compress))
+            .collect();
+
+        self.state.runtime.last_export_hash = Some(current_export_hash);
     }
 
     /// Queue thumbnail loading for paths that aren't in the cache
@@ -507,6 +540,9 @@ impl eframe::App for BentoApp {
 
         // Handle auto-repack (debounced)
         self.handle_auto_repack();
+
+        // Re-estimate PNG sizes if export settings changed
+        self.handle_export_settings_change();
 
         // Request repaint if we have an active task or pending repack
         if self.state.runtime.pack_task.is_some()
