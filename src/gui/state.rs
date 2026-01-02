@@ -159,6 +159,7 @@ pub struct RuntimeState {
     // Preview controls
     pub preview_zoom: f32,
     pub preview_offset: egui::Vec2,
+    pub needs_fit_to_view: bool,
 
     // Status and tasks
     pub status: Status,
@@ -187,6 +188,7 @@ impl Default for RuntimeState {
             atlas_png_sizes: Vec::new(),
             preview_zoom: 1.0,
             preview_offset: egui::Vec2::ZERO,
+            needs_fit_to_view: false,
 
             status: Status::Idle,
             pack_task: None,

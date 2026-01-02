@@ -118,6 +118,7 @@ impl BentoApp {
 
                     self.state.runtime.atlases = Some(atlases);
                     self.state.runtime.selected_atlas = 0;
+                    self.state.runtime.needs_fit_to_view = true;
                     self.state.runtime.status = Status::Done {
                         result: StatusResult::Success(format!(
                             "{} atlas{} packed",

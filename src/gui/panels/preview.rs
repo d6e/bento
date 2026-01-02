@@ -31,9 +31,8 @@ pub fn preview_panel(ui: &mut egui::Ui, state: &mut AppState) {
                     .clicked()
                 {
                     state.runtime.selected_atlas = i;
-                    // Reset view when switching atlases
-                    state.runtime.preview_zoom = 1.0;
-                    state.runtime.preview_offset = egui::Vec2::ZERO;
+                    // Fit view when switching atlases
+                    state.runtime.needs_fit_to_view = true;
                 }
             }
         });
@@ -63,10 +62,9 @@ pub fn preview_panel(ui: &mut egui::Ui, state: &mut AppState) {
         ));
 
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            // Reset view button
+            // Reset view button (fits atlas to view)
             if ui.small_button("Reset View").clicked() {
-                state.runtime.preview_zoom = 1.0;
-                state.runtime.preview_offset = egui::Vec2::ZERO;
+                state.runtime.needs_fit_to_view = true;
             }
 
             // Zoom display
@@ -89,6 +87,13 @@ pub fn preview_panel(ui: &mut egui::Ui, state: &mut AppState) {
     let (response, mut painter) =
         ui.allocate_painter(available, egui::Sense::click_and_drag());
     let rect = response.rect;
+
+    // Apply fit-to-view if requested
+    if state.runtime.needs_fit_to_view {
+        state.runtime.preview_zoom = calculate_fit_zoom(atlas.width, atlas.height, available, 40.0);
+        state.runtime.preview_offset = egui::Vec2::ZERO;
+        state.runtime.needs_fit_to_view = false;
+    }
 
     // Draw checkerboard background
     draw_checkerboard(&painter, rect);
@@ -293,4 +298,16 @@ fn format_file_size(bytes: usize) -> String {
     } else {
         format!("{} B", bytes)
     }
+}
+
+/// Calculate zoom level that fits the atlas within the canvas with margin
+fn calculate_fit_zoom(atlas_width: u32, atlas_height: u32, canvas_size: egui::Vec2, margin: f32) -> f32 {
+    let available_width = (canvas_size.x - margin * 2.0).max(1.0);
+    let available_height = (canvas_size.y - margin * 2.0).max(1.0);
+
+    let zoom_x = available_width / atlas_width as f32;
+    let zoom_y = available_height / atlas_height as f32;
+
+    // Use the smaller zoom to ensure entire atlas fits
+    zoom_x.min(zoom_y).clamp(0.1, 10.0)
 }
