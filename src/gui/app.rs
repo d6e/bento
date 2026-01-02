@@ -4,7 +4,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use super::state::{
-    AppConfig, AppState, BackgroundTask, Operation, OutputFormat, ResizeMode, Status,
+    AppConfig, AppState, BackgroundTask, Operation, OutputFormat, PackResult, ResizeMode, Status,
     StatusResult, ThumbnailState,
 };
 use super::thumbnail::spawn_thumbnail_loader;
@@ -88,11 +88,12 @@ impl BentoApp {
             self.state.runtime.pack_task = None;
 
             match result {
-                Ok(atlases) => {
-                    let count = atlases.len();
+                Ok(pack_result) => {
+                    let count = pack_result.atlases.len();
 
                     // Create textures from atlases
-                    self.state.runtime.atlas_textures = atlases
+                    self.state.runtime.atlas_textures = pack_result
+                        .atlases
                         .iter()
                         .enumerate()
                         .map(|(i, atlas)| {
@@ -108,17 +109,14 @@ impl BentoApp {
                         })
                         .collect();
 
-                    // Estimate PNG file sizes
-                    self.state.runtime.atlas_png_sizes = atlases
-                        .iter()
-                        .map(|atlas| estimate_png_size(&atlas.image))
-                        .collect();
+                    // Use pre-computed PNG sizes from background thread
+                    self.state.runtime.atlas_png_sizes = pack_result.png_sizes;
 
                     // Store hash for auto-repack detection
                     self.state.runtime.last_packed_hash =
                         Some(self.state.config.pack_settings_hash());
 
-                    self.state.runtime.atlases = Some(atlases);
+                    self.state.runtime.atlases = Some(pack_result.atlases);
                     self.state.runtime.selected_atlas = 0;
                     self.state.runtime.needs_fit_to_view = true;
                     self.state.runtime.status = Status::Done {
@@ -349,7 +347,7 @@ impl BentoApp {
 }
 
 /// Perform packing on a background thread
-fn pack_atlases(config: &AppConfig) -> Result<Arc<Vec<Atlas>>, String> {
+fn pack_atlases(config: &AppConfig) -> Result<PackResult, String> {
     if config.input_paths.is_empty() {
         return Err("No input files".to_string());
     }
@@ -381,7 +379,13 @@ fn pack_atlases(config: &AppConfig) -> Result<Arc<Vec<Atlas>>, String> {
         .build(sprites)
         .map_err(|e| e.to_string())?;
 
-    Ok(Arc::new(atlases))
+    // Estimate PNG sizes on background thread to avoid blocking UI
+    let png_sizes: Vec<usize> = atlases.iter().map(|a| estimate_png_size(&a.image)).collect();
+
+    Ok(PackResult {
+        atlases: Arc::new(atlases),
+        png_sizes,
+    })
 }
 
 /// Perform export on a background thread

@@ -39,6 +39,12 @@ pub enum ThumbnailState {
     Failed,
 }
 
+/// Result of packing operation including atlases and pre-computed PNG sizes
+pub struct PackResult {
+    pub atlases: Arc<Vec<Atlas>>,
+    pub png_sizes: Vec<usize>,
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Background Task Abstraction
 // ─────────────────────────────────────────────────────────────────────────────
@@ -174,7 +180,7 @@ pub struct RuntimeState {
 
     // Status and tasks
     pub status: Status,
-    pub pack_task: Option<BackgroundTask<Arc<Vec<Atlas>>>>,
+    pub pack_task: Option<BackgroundTask<PackResult>>,
     pub export_task: Option<BackgroundTask<()>>,
 
     // Auto-repack tracking
