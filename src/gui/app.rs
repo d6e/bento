@@ -137,6 +137,9 @@ impl BentoApp {
                     self.state.runtime.status = Status::Idle;
                 }
                 Err(err) => {
+                    // Update hash to prevent auto-repack retry with same failing config
+                    self.state.runtime.last_packed_hash =
+                        Some(self.state.config.pack_settings_hash());
                     self.state.runtime.status = Status::Done {
                         result: StatusResult::Error(err),
                         at: Instant::now(),
