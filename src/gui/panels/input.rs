@@ -96,10 +96,11 @@ pub fn input_panel(ui: &mut egui::Ui, state: &mut AppState) {
 
     ui.add_space(4.0);
 
-    // File list with remove buttons
+    // File list
     let available_height = ui.available_height() - 120.0; // Reserve space for output controls
     egui::ScrollArea::vertical()
         .max_height(available_height.max(100.0))
+        .auto_shrink([false, false])
         .show(ui, |ui| {
             // Filter paths, keeping original indices for removal
             let filter_lower = state.runtime.sprite_filter.to_lowercase();
@@ -136,7 +137,6 @@ pub fn input_panel(ui: &mut egui::Ui, state: &mut AppState) {
             let delete_pressed = ui
                 .input(|i| i.key_pressed(egui::Key::Delete) || i.key_pressed(egui::Key::Backspace));
 
-            let mut to_remove = None;
             let mut remove_selected = false;
 
             if delete_pressed && !state.runtime.selected_sprites.is_empty() {
@@ -159,11 +159,6 @@ pub fn input_panel(ui: &mut egui::Ui, state: &mut AppState) {
 
                 let row_response = frame.show(ui, |ui| {
                     ui.horizontal(|ui| {
-                        // Remove button (x) for quick single removal
-                        if ui.small_button("x").clicked() {
-                            to_remove = Some(*original_idx);
-                        }
-
                         // Thumbnail
                         let (thumb_rect, _) = ui.allocate_exact_size(
                             egui::vec2(thumb_size, thumb_size),
@@ -241,14 +236,6 @@ pub fn input_panel(ui: &mut egui::Ui, state: &mut AppState) {
             // Handle removal of selected items
             if remove_selected {
                 remove_selected_sprites(state);
-            } else if let Some(i) = to_remove {
-                // Remove single item and adjust selection
-                state.config.input_paths.remove(i);
-                adjust_selection_after_removal(
-                    &mut state.runtime.selected_sprites,
-                    &mut state.runtime.selection_anchor,
-                    &[i],
-                );
             }
 
             // Empty state
@@ -342,49 +329,6 @@ fn handle_sprite_click(
         selected.clear();
         selected.insert(clicked_index);
         *anchor = Some(clicked_index);
-    }
-}
-
-/// Adjust selection indices after items are removed
-fn adjust_selection_after_removal(
-    selected: &mut std::collections::HashSet<usize>,
-    anchor: &mut Option<usize>,
-    removed_indices: &[usize],
-) {
-    // Sort indices in descending order for stable adjustment
-    let mut sorted_removed: Vec<_> = removed_indices.to_vec();
-    sorted_removed.sort_by(|a, b| b.cmp(a));
-
-    let mut new_selected = std::collections::HashSet::new();
-    for &idx in selected.iter() {
-        let mut adjusted = idx;
-        let mut was_removed = false;
-        for &removed in &sorted_removed {
-            if removed < idx {
-                adjusted -= 1;
-            } else if removed == idx {
-                was_removed = true;
-                break;
-            }
-        }
-        if !was_removed {
-            new_selected.insert(adjusted);
-        }
-    }
-    *selected = new_selected;
-
-    // Adjust anchor similarly
-    if let Some(a) = *anchor {
-        let mut adjusted = a;
-        for &removed in &sorted_removed {
-            if removed < a {
-                adjusted -= 1;
-            } else if removed == a {
-                *anchor = None;
-                return;
-            }
-        }
-        *anchor = Some(adjusted);
     }
 }
 
