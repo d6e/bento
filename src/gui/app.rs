@@ -12,7 +12,7 @@ use super::thumbnail::spawn_thumbnail_loader;
 use super::{is_supported_image, panels};
 use crate::atlas::{Atlas, AtlasBuilder};
 use crate::cli::CompressionLevel;
-use crate::output::{save_atlas_image, write_godot_resources, write_json};
+use crate::output::{save_atlas_image, write_godot_resources, write_json, write_tpsheet};
 use crate::sprite::load_sprites;
 
 /// Debounce delay for auto-repack (milliseconds)
@@ -498,6 +498,9 @@ fn export_atlases(atlases: &[Atlas], config: &AppConfig) -> Result<(), String> {
         OutputFormat::Godot => {
             write_godot_resources(atlases, &config.output_dir, &config.name, None)
                 .map_err(|e| e.to_string())?;
+        }
+        OutputFormat::Tpsheet => {
+            write_tpsheet(atlases, &config.output_dir, &config.name).map_err(|e| e.to_string())?;
         }
     }
 

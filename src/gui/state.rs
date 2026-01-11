@@ -19,6 +19,7 @@ pub enum OutputFormat {
     #[default]
     Json,
     Godot,
+    Tpsheet,
 }
 
 /// Resize mode (mirrors CLI's mutually exclusive resize options)

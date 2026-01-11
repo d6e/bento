@@ -305,6 +305,7 @@ pub fn input_panel(ui: &mut egui::Ui, state: &mut AppState) {
         ui.label("Format:");
         ui.radio_value(&mut state.config.format, OutputFormat::Json, "JSON");
         ui.radio_value(&mut state.config.format, OutputFormat::Godot, "Godot");
+        ui.radio_value(&mut state.config.format, OutputFormat::Tpsheet, "tpsheet");
     });
 }
 
