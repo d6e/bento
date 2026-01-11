@@ -6,7 +6,7 @@ use log::{error, info};
 
 use bento::atlas::AtlasBuilder;
 use bento::cli::{CliArgs, Command};
-use bento::output::{save_atlas_image, write_godot_resources, write_json};
+use bento::output::{save_atlas_image, write_godot_resources, write_json, write_tpsheet};
 use bento::sprite::load_sprites;
 
 fn main() {
@@ -33,7 +33,7 @@ fn run() -> Result<()> {
 
     // Extract common args from subcommand
     let args = match &cli.command {
-        Command::Json(args) | Command::Godot(args) => args,
+        Command::Json(args) | Command::Godot(args) | Command::Tpsheet(args) => args,
         #[cfg(feature = "gui")]
         Command::Gui => unreachable!(),
     };
@@ -97,6 +97,10 @@ fn run() -> Result<()> {
                 "Generated {} Godot .tres files",
                 atlases.iter().map(|a| a.sprites.len()).sum::<usize>()
             );
+        }
+        Command::Tpsheet(_) => {
+            write_tpsheet(&atlases, &args.output, &args.name)?;
+            info!("Generated {}.tpsheet", args.name);
         }
         #[cfg(feature = "gui")]
         Command::Gui => unreachable!(),

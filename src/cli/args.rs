@@ -15,6 +15,8 @@ pub enum Command {
     Json(CommonArgs),
     /// Output individual Godot .tres files
     Godot(CommonArgs),
+    /// Output TexturePacker .tpsheet metadata
+    Tpsheet(CommonArgs),
     /// Launch the GUI
     #[cfg(feature = "gui")]
     Gui,
