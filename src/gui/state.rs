@@ -1,4 +1,5 @@
 use eframe::egui;
+use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -14,7 +15,8 @@ use crate::cli::{CompressionLevel, PackMode, PackingHeuristic};
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// Output format selection (mirrors CLI subcommands)
-#[derive(Default, Clone, Copy, PartialEq, Eq)]
+#[derive(Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub enum OutputFormat {
     #[default]
     Json,
@@ -23,11 +25,14 @@ pub enum OutputFormat {
 }
 
 /// Resize mode (mirrors CLI's mutually exclusive resize options)
-#[derive(Default, Clone, Copy, PartialEq)]
+#[derive(Default, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "lowercase")]
 pub enum ResizeMode {
     #[default]
     None,
+    #[serde(rename = "width")]
     Width(u32),
+    #[serde(rename = "scale")]
     Scale(f32),
 }
 
@@ -198,6 +203,41 @@ impl AppConfig {
         }
         hasher.finish()
     }
+
+    /// Hash of entire config for dirty detection (saved vs current state)
+    pub fn full_config_hash(&self) -> u64 {
+        use std::collections::hash_map::DefaultHasher;
+        use std::hash::{Hash, Hasher};
+
+        let mut hasher = DefaultHasher::new();
+        self.input_paths.hash(&mut hasher);
+        self.output_dir.hash(&mut hasher);
+        self.name.hash(&mut hasher);
+        std::mem::discriminant(&self.format).hash(&mut hasher);
+        self.max_width.hash(&mut hasher);
+        self.max_height.hash(&mut hasher);
+        self.padding.hash(&mut hasher);
+        self.pot.hash(&mut hasher);
+        self.trim.hash(&mut hasher);
+        self.trim_margin.hash(&mut hasher);
+        self.extrude.hash(&mut hasher);
+        // Hash resize_mode
+        match self.resize_mode {
+            ResizeMode::None => 0u8.hash(&mut hasher),
+            ResizeMode::Width(w) => { 1u8.hash(&mut hasher); w.hash(&mut hasher); }
+            ResizeMode::Scale(s) => { 2u8.hash(&mut hasher); s.to_bits().hash(&mut hasher); }
+        }
+        std::mem::discriminant(&self.heuristic).hash(&mut hasher);
+        std::mem::discriminant(&self.pack_mode).hash(&mut hasher);
+        self.opaque.hash(&mut hasher);
+        // Hash compress
+        match &self.compress {
+            None => 0u8.hash(&mut hasher),
+            Some(CompressionLevel::Level(n)) => { 1u8.hash(&mut hasher); n.hash(&mut hasher); }
+            Some(CompressionLevel::Max) => 2u8.hash(&mut hasher),
+        }
+        hasher.finish()
+    }
 }
 
 /// Transient runtime state (not serializable)
@@ -245,6 +285,12 @@ pub struct RuntimeState {
     // Thumbnails for input sprites
     pub thumbnails: HashMap<PathBuf, ThumbnailState>,
     pub thumbnail_receiver: Option<mpsc::Receiver<(PathBuf, Option<image::RgbaImage>)>>,
+
+    /// Path to currently loaded .bento config file (None = new unsaved project)
+    pub config_path: Option<PathBuf>,
+
+    /// Hash of config when last saved, for dirty detection
+    pub last_saved_config_hash: Option<u64>,
 }
 
 impl Default for RuntimeState {
@@ -280,6 +326,19 @@ impl Default for RuntimeState {
 
             thumbnails: HashMap::new(),
             thumbnail_receiver: None,
+
+            config_path: None,
+            last_saved_config_hash: None,
+        }
+    }
+}
+
+impl RuntimeState {
+    /// Check if config has unsaved changes
+    pub fn is_config_dirty(&self, config: &AppConfig) -> bool {
+        match self.last_saved_config_hash {
+            Some(saved_hash) => config.full_config_hash() != saved_hash,
+            None => self.config_path.is_some(), // Has path but never saved = dirty
         }
     }
 }
