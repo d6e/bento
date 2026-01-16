@@ -22,7 +22,7 @@ fn run() -> Result<()> {
     // Launch GUI if no arguments provided and gui feature is enabled
     #[cfg(feature = "gui")]
     if std::env::args().len() == 1 {
-        return bento::gui::run();
+        return bento::gui::run(None);
     }
 
     let cli = CliArgs::parse();
@@ -30,7 +30,7 @@ fn run() -> Result<()> {
     // Handle GUI command
     #[cfg(feature = "gui")]
     if matches!(cli.command, Command::Gui) {
-        return bento::gui::run();
+        return bento::gui::run(None);
     }
 
     // Extract common args from subcommand

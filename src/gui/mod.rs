@@ -1,4 +1,5 @@
 mod app;
+mod dialogs;
 mod panels;
 pub mod state;
 mod thumbnail;
@@ -15,7 +16,7 @@ pub(crate) fn is_supported_image(path: &std::path::Path) -> bool {
         .is_some_and(|ext| SUPPORTED_EXTENSIONS.contains(&ext.to_lowercase().as_str()))
 }
 
-pub fn run() -> Result<()> {
+pub fn run(initial_path: Option<std::path::PathBuf>) -> Result<()> {
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
             .with_inner_size([1200.0, 800.0])
@@ -25,9 +26,9 @@ pub fn run() -> Result<()> {
     };
 
     eframe::run_native(
-        "Bento - Sprite Atlas Packer",
+        "Bento",
         options,
-        Box::new(|cc| Ok(Box::new(app::BentoApp::new(cc)))),
+        Box::new(move |cc| Ok(Box::new(app::BentoApp::new(cc, initial_path)))),
     )
     .map_err(|e| anyhow::anyhow!("Failed to run GUI: {}", e))
 }

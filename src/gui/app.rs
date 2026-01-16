@@ -1,9 +1,11 @@
 use eframe::egui;
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc;
 use std::time::{Duration, Instant};
 
+use super::dialogs::{ConfigChooserDialog, find_bento_files};
 use super::state::{
     AppConfig, AppState, BackgroundTask, Operation, OutputFormat, PackResult, ResizeMode, Status,
     StatusResult, ThumbnailState,
@@ -11,7 +13,8 @@ use super::state::{
 use super::thumbnail::spawn_thumbnail_loader;
 use super::{is_supported_image, panels};
 use crate::atlas::{Atlas, AtlasBuilder};
-use crate::cli::CompressionLevel;
+use crate::cli::{CompressionLevel, PackMode, PackingHeuristic};
+use crate::config::{save_config, BentoConfig, LoadedConfig};
 use crate::output::{save_atlas_image, write_godot_resources, write_json, write_tpsheet};
 use crate::sprite::load_sprites;
 
@@ -21,20 +24,213 @@ const AUTO_REPACK_DEBOUNCE_MS: u64 = 300;
 /// Main GUI application
 pub struct BentoApp {
     state: AppState,
+    config_chooser: Option<ConfigChooserDialog>,
 }
 
 const LAST_INPUT_DIR_KEY: &str = "last_input_dir";
 
 impl BentoApp {
-    pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
-        let mut state = AppState::default();
+    pub fn new(cc: &eframe::CreationContext<'_>, initial_path: Option<PathBuf>) -> Self {
+        let mut app = Self {
+            state: AppState::default(),
+            config_chooser: None,
+        };
 
         // Restore persisted state
         if let Some(storage) = cc.storage {
-            state.runtime.last_input_dir = eframe::get_value(storage, LAST_INPUT_DIR_KEY);
+            app.state.runtime.last_input_dir = eframe::get_value(storage, LAST_INPUT_DIR_KEY);
         }
 
-        Self { state }
+        // Handle initial path
+        if let Some(path) = initial_path {
+            app.handle_initial_path(path);
+        }
+
+        app
+    }
+
+    fn handle_initial_path(&mut self, path: PathBuf) {
+        if path.is_file() && path.extension().is_some_and(|e| e == "bento") {
+            // Direct .bento file - load it
+            self.load_config_file(&path);
+        } else if path.is_dir() {
+            // Directory - look for .bento files
+            let bento_files = find_bento_files(&path);
+            match bento_files.len() {
+                0 => {
+                    // No .bento files, maybe add images from directory
+                    self.state.runtime.last_input_dir = Some(path);
+                }
+                1 => {
+                    // Single .bento file - load it automatically
+                    self.load_config_file(&bento_files[0]);
+                }
+                _ => {
+                    // Multiple .bento files - show chooser dialog
+                    self.config_chooser = Some(ConfigChooserDialog::new(bento_files));
+                }
+            }
+        }
+    }
+
+    fn load_config_file(&mut self, path: &std::path::Path) {
+        match LoadedConfig::load(path) {
+            Ok(loaded) => {
+                self.apply_loaded_config(loaded, path.to_path_buf());
+            }
+            Err(e) => {
+                self.state.runtime.status = Status::Done {
+                    result: StatusResult::Error(format!("Failed to load config: {}", e)),
+                    at: std::time::Instant::now(),
+                };
+            }
+        }
+    }
+
+    fn apply_loaded_config(&mut self, loaded: LoadedConfig, config_path: PathBuf) {
+        let cfg = &loaded.config;
+
+        // Resolve input paths
+        match loaded.resolve_inputs() {
+            Ok(paths) => self.state.config.input_paths = paths,
+            Err(e) => {
+                self.state.runtime.status = Status::Done {
+                    result: StatusResult::Error(format!("Failed to resolve inputs: {}", e)),
+                    at: std::time::Instant::now(),
+                };
+                return;
+            }
+        }
+
+        // Apply settings
+        self.state.config.output_dir = loaded.resolve_output_dir();
+        self.state.config.name = cfg.name.clone();
+        self.state.config.format = match cfg.format.as_deref() {
+            Some("godot") => OutputFormat::Godot,
+            Some("tpsheet") => OutputFormat::Tpsheet,
+            _ => OutputFormat::Json,
+        };
+        self.state.config.max_width = cfg.max_width;
+        self.state.config.max_height = cfg.max_height;
+        self.state.config.padding = cfg.padding;
+        self.state.config.pot = cfg.pot;
+        self.state.config.trim = cfg.trim;
+        self.state.config.trim_margin = cfg.trim_margin;
+        self.state.config.extrude = cfg.extrude;
+
+        // Resize mode
+        self.state.config.resize_mode = match &cfg.resize {
+            Some(crate::config::ResizeConfig::Width { width }) => ResizeMode::Width(*width),
+            Some(crate::config::ResizeConfig::Scale { scale }) => ResizeMode::Scale(*scale),
+            None => ResizeMode::None,
+        };
+
+        // Heuristic
+        self.state.config.heuristic = match cfg.heuristic.as_str() {
+            "best-long-side-fit" => PackingHeuristic::BestLongSideFit,
+            "best-area-fit" => PackingHeuristic::BestAreaFit,
+            "bottom-left" => PackingHeuristic::BottomLeft,
+            "contact-point" => PackingHeuristic::ContactPoint,
+            "best" => PackingHeuristic::Best,
+            _ => PackingHeuristic::BestShortSideFit,
+        };
+
+        // Pack mode
+        self.state.config.pack_mode = match cfg.pack_mode.as_str() {
+            "best" => PackMode::Best,
+            _ => PackMode::Single,
+        };
+
+        // Compress
+        self.state.config.compress = cfg.compress.as_ref().map(|c| match c {
+            crate::config::CompressConfig::Level(n) => CompressionLevel::Level(*n),
+            crate::config::CompressConfig::Max(_) => CompressionLevel::Max,
+        });
+
+        self.state.config.opaque = cfg.opaque;
+
+        // Set config path and save hash
+        self.state.runtime.config_path = Some(config_path);
+        self.state.runtime.last_saved_config_hash = Some(self.state.config.full_config_hash());
+
+        // Clear thumbnails and trigger repack
+        self.state.runtime.thumbnails.clear();
+        self.state.runtime.last_packed_hash = None;
+    }
+
+    fn save_current_config(&mut self) -> Result<(), String> {
+        let Some(path) = &self.state.runtime.config_path else {
+            return Err("No config file path set".to_string());
+        };
+
+        let bento_config = self.config_to_bento_config(path);
+        save_config(&bento_config, path).map_err(|e| e.to_string())?;
+
+        self.state.runtime.last_saved_config_hash = Some(self.state.config.full_config_hash());
+        Ok(())
+    }
+
+    fn config_to_bento_config(&self, config_path: &std::path::Path) -> BentoConfig {
+        use crate::config::{CompressConfig, ResizeConfig as CfgResize};
+
+        let config_dir = config_path.parent().unwrap_or(std::path::Path::new("."));
+
+        BentoConfig {
+            version: 1,
+            input: self
+                .state
+                .config
+                .input_paths
+                .iter()
+                .map(|p| crate::config::make_relative(p, config_dir))
+                .collect(),
+            output_dir: crate::config::make_relative(&self.state.config.output_dir, config_dir),
+            name: self.state.config.name.clone(),
+            format: Some(match self.state.config.format {
+                OutputFormat::Json => "json".to_string(),
+                OutputFormat::Godot => "godot".to_string(),
+                OutputFormat::Tpsheet => "tpsheet".to_string(),
+            }),
+            max_width: self.state.config.max_width,
+            max_height: self.state.config.max_height,
+            padding: self.state.config.padding,
+            pot: self.state.config.pot,
+            trim: self.state.config.trim,
+            trim_margin: self.state.config.trim_margin,
+            extrude: self.state.config.extrude,
+            resize: match self.state.config.resize_mode {
+                ResizeMode::None => None,
+                ResizeMode::Width(w) => Some(CfgResize::Width { width: w }),
+                ResizeMode::Scale(s) => Some(CfgResize::Scale { scale: s }),
+            },
+            heuristic: match self.state.config.heuristic {
+                PackingHeuristic::BestShortSideFit => "best-short-side-fit".to_string(),
+                PackingHeuristic::BestLongSideFit => "best-long-side-fit".to_string(),
+                PackingHeuristic::BestAreaFit => "best-area-fit".to_string(),
+                PackingHeuristic::BottomLeft => "bottom-left".to_string(),
+                PackingHeuristic::ContactPoint => "contact-point".to_string(),
+                PackingHeuristic::Best => "best".to_string(),
+            },
+            pack_mode: match self.state.config.pack_mode {
+                PackMode::Single => "single".to_string(),
+                PackMode::Best => "best".to_string(),
+            },
+            compress: self.state.config.compress.map(|c| match c {
+                CompressionLevel::Level(n) => CompressConfig::Level(n),
+                CompressionLevel::Max => CompressConfig::Max("max".to_string()),
+            }),
+            opaque: self.state.config.opaque,
+        }
+    }
+
+    pub fn new_project(&mut self) {
+        self.state.config = AppConfig::default();
+        self.state.runtime.config_path = None;
+        self.state.runtime.last_saved_config_hash = None;
+        self.state.runtime.atlases = None;
+        self.state.runtime.atlas_textures.clear();
+        self.state.runtime.thumbnails.clear();
+        self.state.runtime.last_packed_hash = None;
     }
 
     fn handle_dropped_files(&mut self, ctx: &egui::Context) {
@@ -196,6 +392,14 @@ impl BentoApp {
                         result: StatusResult::Success(format!("Exported to {}", path)),
                         at: Instant::now(),
                     };
+
+                    // Auto-save config if we have a config path
+                    if self.state.runtime.config_path.is_some() {
+                        if let Err(e) = self.save_current_config() {
+                            // Log error but don't fail the export
+                            log::warn!("Failed to auto-save config: {}", e);
+                        }
+                    }
                 }
                 Err(err) => {
                     self.state.runtime.status = Status::Done {
@@ -568,6 +772,33 @@ impl eframe::App for BentoApp {
     }
 
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        // Update window title
+        let title = if let Some(path) = &self.state.runtime.config_path {
+            let name = path
+                .file_name()
+                .map(|n| n.to_string_lossy().to_string())
+                .unwrap_or_else(|| "Untitled".to_string());
+            let dirty = if self.state.runtime.is_config_dirty(&self.state.config) {
+                " *"
+            } else {
+                ""
+            };
+            format!("Bento - {}{}", name, dirty)
+        } else {
+            "Bento".to_string()
+        };
+        ctx.send_viewport_cmd(egui::ViewportCommand::Title(title));
+
+        // Handle config chooser dialog
+        if let Some(ref mut chooser) = self.config_chooser {
+            if let Some(selected) = chooser.show(ctx) {
+                self.config_chooser = None;
+                if !selected.as_os_str().is_empty() {
+                    self.load_config_file(&selected);
+                }
+            }
+        }
+
         // Handle dropped files
         self.handle_dropped_files(ctx);
 
