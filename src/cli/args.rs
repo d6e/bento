@@ -25,8 +25,12 @@ pub enum Command {
 #[derive(Args, Debug, Clone)]
 pub struct CommonArgs {
     /// Input image files
-    #[arg(required = true)]
+    #[arg(required_unless_present = "config")]
     pub input: Vec<PathBuf>,
+
+    /// Load settings from a .bento config file
+    #[arg(short = 'c', long, value_name = "FILE")]
+    pub config: Option<PathBuf>,
 
     /// Output directory for atlas files
     #[arg(short, long, default_value = ".")]
