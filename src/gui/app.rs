@@ -857,7 +857,35 @@ impl eframe::App for BentoApp {
             .default_width(280.0)
             .min_width(200.0)
             .show(ctx, |ui| {
-                panels::input_panel(ui, &mut self.state);
+                let action = panels::input_panel(ui, &mut self.state);
+
+                if action.new_project {
+                    // TODO: check dirty and prompt
+                    self.new_project();
+                }
+
+                if let Some(path) = action.open_config_path {
+                    if action.save_config_as {
+                        // Save As: set path and save
+                        self.state.runtime.config_path = Some(path);
+                        if let Err(e) = self.save_current_config() {
+                            self.state.runtime.status = Status::Done {
+                                result: StatusResult::Error(format!("Failed to save: {}", e)),
+                                at: std::time::Instant::now(),
+                            };
+                        }
+                    } else {
+                        // Open: load the config
+                        self.load_config_file(&path);
+                    }
+                } else if action.save_config {
+                    if let Err(e) = self.save_current_config() {
+                        self.state.runtime.status = Status::Done {
+                            result: StatusResult::Error(format!("Failed to save: {}", e)),
+                            at: std::time::Instant::now(),
+                        };
+                    }
+                }
             });
 
         // Right panel with settings

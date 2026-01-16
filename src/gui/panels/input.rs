@@ -4,8 +4,77 @@ use crate::gui::is_supported_image;
 use crate::gui::state::{AppState, OutputFormat, ThumbnailState};
 use crate::gui::thumbnail::THUMBNAIL_SIZE;
 
+/// Actions requested by the input panel
+#[derive(Default)]
+pub struct InputPanelAction {
+    pub new_project: bool,
+    pub save_config: bool,
+    pub save_config_as: bool,
+    pub open_config_path: Option<std::path::PathBuf>,
+}
+
 /// Input panel with file list, output path, and format selection
-pub fn input_panel(ui: &mut egui::Ui, state: &mut AppState) {
+pub fn input_panel(ui: &mut egui::Ui, state: &mut AppState) -> InputPanelAction {
+    let mut action = InputPanelAction::default();
+
+    // Config file buttons
+    ui.horizontal(|ui| {
+        if ui.button("New").clicked() {
+            action.new_project = true;
+        }
+
+        if ui.button("Open").clicked() {
+            let dialog = rfd::FileDialog::new().add_filter("Bento Config", &["bento"]);
+            if let Some(path) = dialog.pick_file() {
+                action.open_config_path = Some(path);
+            }
+        }
+
+        // Save button - enabled only if we have a config path
+        let can_save = state.runtime.config_path.is_some();
+        if ui
+            .add_enabled(can_save, egui::Button::new("Save"))
+            .clicked()
+        {
+            action.save_config = true;
+        }
+
+        if ui.button("Save As").clicked() {
+            let mut dialog = rfd::FileDialog::new()
+                .add_filter("Bento Config", &["bento"])
+                .set_file_name("atlas.bento");
+            if let Some(dir) = &state.runtime.last_input_dir {
+                dialog = dialog.set_directory(dir);
+            }
+            if let Some(path) = dialog.save_file() {
+                // Ensure .bento extension
+                let path = if path.extension().is_some_and(|e| e == "bento") {
+                    path
+                } else {
+                    path.with_extension("bento")
+                };
+                action.open_config_path = Some(path);
+                action.save_config_as = true;
+            }
+        }
+    });
+
+    // Show current config path if loaded
+    if let Some(path) = &state.runtime.config_path {
+        let dirty = if state.runtime.is_config_dirty(&state.config) {
+            " *"
+        } else {
+            ""
+        };
+        let name = path
+            .file_name()
+            .map(|n| n.to_string_lossy().to_string())
+            .unwrap_or_else(|| path.display().to_string());
+        ui.label(format!("{}{}", name, dirty));
+    }
+
+    ui.separator();
+
     ui.heading("Input Sprites");
 
     ui.add_space(4.0);
@@ -294,6 +363,8 @@ pub fn input_panel(ui: &mut egui::Ui, state: &mut AppState) {
         ui.radio_value(&mut state.config.format, OutputFormat::Godot, "Godot");
         ui.radio_value(&mut state.config.format, OutputFormat::Tpsheet, "tpsheet");
     });
+
+    action
 }
 
 /// Handle click on a sprite row, updating selection based on modifiers
