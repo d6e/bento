@@ -3,7 +3,7 @@ use std::path::PathBuf;
 
 use anyhow::{Context, Result};
 use clap::Parser;
-use log::{error, info};
+use log::info;
 
 use bento::atlas::AtlasBuilder;
 use bento::cli::{CliArgs, Command, CommonArgs, CompressionLevel, PackMode, PackingHeuristic};
@@ -13,7 +13,9 @@ use bento::sprite::load_sprites;
 
 fn main() {
     if let Err(e) = run() {
-        error!("{:#}", e);
+        // Use eprintln instead of error! because logger may not be initialized
+        // (e.g., config loading fails before logger init)
+        eprintln!("Error: {:#}", e);
         std::process::exit(1);
     }
 }
