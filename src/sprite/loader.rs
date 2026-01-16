@@ -12,6 +12,12 @@ use crate::error::BentoError;
 
 const SUPPORTED_EXTENSIONS: &[&str] = &["png", "jpg", "jpeg", "gif", "bmp", "webp"];
 
+/// Image path with its base directory for computing relative paths
+struct ImagePath {
+    path: std::path::PathBuf,
+    base: Option<std::path::PathBuf>,
+}
+
 /// Load sprites from input paths (files or directories)
 pub fn load_sprites(
     inputs: &[impl AsRef<Path>],
@@ -31,14 +37,21 @@ pub fn load_sprites(
 
     let sprites: Result<Vec<_>> = image_paths
         .par_iter()
-        .map(|path| {
+        .map(|img_path| {
             // Check for cancellation before loading each image
             if let Some(token) = cancel_token
                 && token.load(Ordering::Relaxed)
             {
                 return Err(BentoError::Cancelled.into());
             }
-            load_single_sprite(path, trim, trim_margin, resize_width, resize_scale)
+            load_single_sprite(
+                &img_path.path,
+                img_path.base.as_deref(),
+                trim,
+                trim_margin,
+                resize_width,
+                resize_scale,
+            )
         })
         .collect();
 
@@ -53,7 +66,7 @@ pub fn load_sprites(
     Ok(sprites)
 }
 
-fn collect_image_paths(inputs: &[impl AsRef<Path>]) -> Result<Vec<std::path::PathBuf>> {
+fn collect_image_paths(inputs: &[impl AsRef<Path>]) -> Result<Vec<ImagePath>> {
     let mut paths = Vec::new();
 
     for input in inputs {
@@ -64,25 +77,35 @@ fn collect_image_paths(inputs: &[impl AsRef<Path>]) -> Result<Vec<std::path::Pat
 
         if path.is_file() {
             if is_supported_image(path) {
-                paths.push(path.to_path_buf());
+                paths.push(ImagePath {
+                    path: path.to_path_buf(),
+                    base: None,
+                });
             }
         } else if path.is_dir() {
-            collect_from_directory(path, &mut paths)?;
+            collect_from_directory(path, path, &mut paths)?;
         }
     }
 
     Ok(paths)
 }
 
-fn collect_from_directory(dir: &Path, paths: &mut Vec<std::path::PathBuf>) -> Result<()> {
+fn collect_from_directory(
+    base: &Path,
+    dir: &Path,
+    paths: &mut Vec<ImagePath>,
+) -> Result<()> {
     for entry in std::fs::read_dir(dir).context("Failed to read directory")? {
         let entry = entry?;
         let path = entry.path();
 
         if path.is_file() && is_supported_image(&path) {
-            paths.push(path);
+            paths.push(ImagePath {
+                path,
+                base: Some(base.to_path_buf()),
+            });
         } else if path.is_dir() {
-            collect_from_directory(&path, paths)?;
+            collect_from_directory(base, &path, paths)?;
         }
     }
 
@@ -98,6 +121,7 @@ fn is_supported_image(path: &Path) -> bool {
 
 fn load_single_sprite(
     path: &Path,
+    base: Option<&Path>,
     trim: bool,
     trim_margin: u32,
     resize_width: Option<u32>,
@@ -122,11 +146,24 @@ fn load_single_sprite(
         _ => img,
     };
 
-    let name = path
-        .file_stem()
-        .and_then(|s| s.to_str())
-        .unwrap_or("unknown")
-        .to_string();
+    // Compute sprite name: relative path with extension for directory inputs,
+    // or filename with extension for individual file inputs
+    let name = match base {
+        Some(base_dir) => {
+            // Compute relative path from base directory
+            path.strip_prefix(base_dir)
+                .unwrap_or(path)
+                .to_string_lossy()
+                .to_string()
+        }
+        None => {
+            // Individual file: use filename with extension
+            path.file_name()
+                .and_then(|s| s.to_str())
+                .unwrap_or("unknown")
+                .to_string()
+        }
+    };
 
     let (image, trim_info) = if trim {
         trim_sprite(&img, trim_margin)
