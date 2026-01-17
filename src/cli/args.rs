@@ -32,37 +32,37 @@ pub struct CommonArgs {
     #[arg(short = 'c', long, value_name = "FILE")]
     pub config: Option<PathBuf>,
 
-    /// Output directory for atlas files
-    #[arg(short, long, default_value = ".")]
-    pub output: PathBuf,
+    /// Output directory for atlas files [default: .]
+    #[arg(short, long)]
+    pub output: Option<PathBuf>,
 
-    /// Base name for output files (atlas_0.png, atlas.json, etc.)
-    #[arg(short = 'n', long, default_value = "atlas")]
-    pub name: String,
+    /// Base name for output files (atlas_0.png, atlas.json, etc.) [default: atlas]
+    #[arg(short = 'n', long)]
+    pub name: Option<String>,
 
-    /// Maximum atlas width in pixels
-    #[arg(long, default_value = "4096")]
-    pub max_width: u32,
+    /// Maximum atlas width in pixels [default: 4096]
+    #[arg(long)]
+    pub max_width: Option<u32>,
 
-    /// Maximum atlas height in pixels
-    #[arg(long, default_value = "4096")]
-    pub max_height: u32,
+    /// Maximum atlas height in pixels [default: 4096]
+    #[arg(long)]
+    pub max_height: Option<u32>,
 
-    /// Padding between sprites in pixels
-    #[arg(short, long, default_value = "1")]
-    pub padding: u32,
+    /// Padding between sprites in pixels [default: 1]
+    #[arg(short, long)]
+    pub padding: Option<u32>,
 
     /// Disable sprite trimming (remove transparent borders)
     #[arg(long)]
     pub no_trim: bool,
 
-    /// Keep N pixels of transparent border after trimming
-    #[arg(long, default_value = "0")]
-    pub trim_margin: u32,
+    /// Keep N pixels of transparent border after trimming [default: 0]
+    #[arg(long)]
+    pub trim_margin: Option<u32>,
 
-    /// Packing heuristic to use
-    #[arg(long, value_enum, default_value = "best-short-side-fit")]
-    pub heuristic: PackingHeuristic,
+    /// Packing heuristic to use [default: best-short-side-fit]
+    #[arg(long, value_enum)]
+    pub heuristic: Option<PackingHeuristic>,
 
     /// Output RGB instead of RGBA (opaque atlas)
     #[arg(long)]
@@ -72,9 +72,9 @@ pub struct CommonArgs {
     #[arg(long)]
     pub pot: bool,
 
-    /// Extrude sprite edges by N pixels (helps with texture bleeding)
-    #[arg(long, default_value = "0")]
-    pub extrude: u32,
+    /// Extrude sprite edges by N pixels (helps with texture bleeding) [default: 0]
+    #[arg(long)]
+    pub extrude: Option<u32>,
 
     /// Verbose output
     #[arg(short, long)]
@@ -88,9 +88,9 @@ pub struct CommonArgs {
     #[arg(long, value_name = "FACTOR", conflicts_with = "resize_width")]
     pub resize_scale: Option<f32>,
 
-    /// Pack mode: single (use one ordering) or best (try multiple orderings)
-    #[arg(long, value_enum, default_value = "single")]
-    pub pack_mode: PackMode,
+    /// Pack mode: single (use one ordering) or best (try multiple orderings) [default: single]
+    #[arg(long, value_enum)]
+    pub pack_mode: Option<PackMode>,
 
     /// Compress PNG output (0-6 or 'max'). Default level is 2 if flag is present without value.
     #[arg(long, value_name = "LEVEL", default_missing_value = "2", num_args = 0..=1)]

@@ -1,6 +1,6 @@
 use std::path::{Path, PathBuf};
 
-use anyhow::{Context, Result};
+use anyhow::{bail, Context, Result};
 
 use super::types::BentoConfig;
 
@@ -41,6 +41,15 @@ impl LoadedConfig {
         let mut results = Vec::new();
 
         for pattern in &self.config.input {
+            // Check for unsupported brace expansion before processing
+            if contains_brace_expansion(pattern) {
+                bail!(
+                    "Brace expansion patterns like '{{a,b}}' are not supported in pattern '{}'. \
+                     Use separate patterns or character classes like '[ab]' instead.",
+                    pattern
+                );
+            }
+
             if is_glob_pattern(pattern) {
                 // Resolve glob pattern relative to config dir
                 let full_pattern = self.config_dir.join(pattern);
@@ -75,6 +84,21 @@ fn is_glob_pattern(pattern: &str) -> bool {
     pattern.contains('*') || pattern.contains('?') || pattern.contains('[')
 }
 
+/// Check if a pattern contains brace expansion syntax (e.g., `{a,b}`).
+///
+/// This is not supported by the `glob` crate and needs a helpful error message.
+fn contains_brace_expansion(pattern: &str) -> bool {
+    // Look for `{` followed eventually by `,` and then `}`
+    // This avoids false positives on patterns that just happen to have a `{`
+    if let Some(open) = pattern.find('{') {
+        if let Some(close) = pattern[open..].find('}') {
+            let inside = &pattern[open + 1..open + close];
+            return inside.contains(',');
+        }
+    }
+    false
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -88,5 +112,22 @@ mod tests {
         assert!(is_glob_pattern("sprite[0-9].png"));
         assert!(!is_glob_pattern("sprite.png"));
         assert!(!is_glob_pattern("sprites/hero.png"));
+    }
+
+    #[test]
+    fn test_contains_brace_expansion() {
+        // Patterns with brace expansion
+        assert!(contains_brace_expansion("{a,b}"));
+        assert!(contains_brace_expansion("sprites/{hero,enemy}.png"));
+        assert!(contains_brace_expansion("sprites/{a,b,c}.png"));
+        assert!(contains_brace_expansion("path/to/{foo,bar}/image.png"));
+
+        // Patterns without brace expansion (should not trigger)
+        assert!(!contains_brace_expansion("sprite.png"));
+        assert!(!contains_brace_expansion("sprites/*.png"));
+        assert!(!contains_brace_expansion("{no_comma}"));
+        assert!(!contains_brace_expansion("just_a_brace{"));
+        assert!(!contains_brace_expansion("close_brace}"));
+        assert!(!contains_brace_expansion("comma,but_no_braces"));
     }
 }

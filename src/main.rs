@@ -163,76 +163,57 @@ fn merge_config_with_args(args: &CommonArgs) -> Result<MergedConfig> {
         Vec::new()
     };
 
-    // Determine output directory: CLI overrides config
-    // CLI default is ".", so we check if config provides a different value
-    let output = if let Some(ref lc) = loaded_config {
-        if args.output == PathBuf::from(".") {
-            lc.resolve_output_dir()
-        } else {
-            args.output.clone()
-        }
-    } else {
-        args.output.clone()
-    };
+    // Determine output directory: CLI > config > default
+    let output = args.output.clone().unwrap_or_else(|| {
+        loaded_config
+            .as_ref()
+            .map(|lc| lc.resolve_output_dir())
+            .unwrap_or_else(|| PathBuf::from("."))
+    });
 
-    // Determine name: CLI overrides config
-    let name = if let Some(ref lc) = loaded_config {
-        if args.name == "atlas" {
-            lc.config.name.clone()
-        } else {
-            args.name.clone()
-        }
-    } else {
-        args.name.clone()
-    };
+    // Determine name: CLI > config > default
+    let name = args.name.clone().unwrap_or_else(|| {
+        loaded_config
+            .as_ref()
+            .map(|lc| lc.config.name.clone())
+            .unwrap_or_else(|| "atlas".to_string())
+    });
 
-    // For numeric fields with defaults, CLI wins if different from default
-    let (max_width, max_height) = if let Some(ref lc) = loaded_config {
-        (
-            if args.max_width == 4096 {
-                lc.config.max_width
-            } else {
-                args.max_width
-            },
-            if args.max_height == 4096 {
-                lc.config.max_height
-            } else {
-                args.max_height
-            },
-        )
-    } else {
-        (args.max_width, args.max_height)
-    };
+    // For numeric fields: CLI > config > default
+    let max_width = args.max_width.unwrap_or_else(|| {
+        loaded_config
+            .as_ref()
+            .map(|lc| lc.config.max_width)
+            .unwrap_or(4096)
+    });
 
-    let padding = if let Some(ref lc) = loaded_config {
-        if args.padding == 1 {
-            lc.config.padding
-        } else {
-            args.padding
-        }
-    } else {
-        args.padding
-    };
+    let max_height = args.max_height.unwrap_or_else(|| {
+        loaded_config
+            .as_ref()
+            .map(|lc| lc.config.max_height)
+            .unwrap_or(4096)
+    });
 
-    let trim_margin = if let Some(ref lc) = loaded_config {
-        if args.trim_margin == 0 {
-            lc.config.trim_margin
-        } else {
-            args.trim_margin
-        }
-    } else {
-        args.trim_margin
-    };
+    let padding = args.padding.unwrap_or_else(|| {
+        loaded_config
+            .as_ref()
+            .map(|lc| lc.config.padding)
+            .unwrap_or(1)
+    });
 
-    let extrude = if let Some(ref lc) = loaded_config {
-        if args.extrude == 0 {
-            lc.config.extrude
-        } else {
-            args.extrude
-        }
-    } else {
-        args.extrude
-    };
+    let trim_margin = args.trim_margin.unwrap_or_else(|| {
+        loaded_config
+            .as_ref()
+            .map(|lc| lc.config.trim_margin)
+            .unwrap_or(0)
+    });
+
+    let extrude = args.extrude.unwrap_or_else(|| {
+        loaded_config
+            .as_ref()
+            .map(|lc| lc.config.extrude)
+            .unwrap_or(0)
+    });
 
     // Boolean flags: CLI presence sets them to true, otherwise use config
     let trim = if args.no_trim {
@@ -262,27 +243,21 @@ fn merge_config_with_args(args: &CommonArgs) -> Result<MergedConfig> {
     // Verbose is CLI-only
     let verbose = args.verbose;
 
-    // Heuristic: parse from config if CLI is default
-    let heuristic = if let Some(ref lc) = loaded_config {
-        if args.heuristic == PackingHeuristic::BestShortSideFit {
-            parse_heuristic(&lc.config.heuristic).unwrap_or(args.heuristic)
-        } else {
-            args.heuristic
-        }
-    } else {
-        args.heuristic
-    };
+    // Heuristic: CLI > config > default
+    let heuristic = args.heuristic.unwrap_or_else(|| {
+        loaded_config
+            .as_ref()
+            .and_then(|lc| parse_heuristic(&lc.config.heuristic))
+            .unwrap_or(PackingHeuristic::BestShortSideFit)
+    });
 
-    // Pack mode: parse from config if CLI is default
-    let pack_mode = if let Some(ref lc) = loaded_config {
-        if args.pack_mode == PackMode::Single {
-            parse_pack_mode(&lc.config.pack_mode).unwrap_or(args.pack_mode)
-        } else {
-            args.pack_mode
-        }
-    } else {
-        args.pack_mode
-    };
+    // Pack mode: CLI > config > default
+    let pack_mode = args.pack_mode.unwrap_or_else(|| {
+        loaded_config
+            .as_ref()
+            .and_then(|lc| parse_pack_mode(&lc.config.pack_mode))
+            .unwrap_or(PackMode::Single)
+    });
 
     // Resize: CLI options override config
     let (resize_width, resize_scale) =
