@@ -90,11 +90,7 @@ fn collect_image_paths(inputs: &[impl AsRef<Path>]) -> Result<Vec<ImagePath>> {
     Ok(paths)
 }
 
-fn collect_from_directory(
-    base: &Path,
-    dir: &Path,
-    paths: &mut Vec<ImagePath>,
-) -> Result<()> {
+fn collect_from_directory(base: &Path, dir: &Path, paths: &mut Vec<ImagePath>) -> Result<()> {
     for entry in std::fs::read_dir(dir).context("Failed to read directory")? {
         let entry = entry?;
         let path = entry.path();

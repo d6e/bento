@@ -224,8 +224,14 @@ impl AppConfig {
         // Hash resize_mode
         match self.resize_mode {
             ResizeMode::None => 0u8.hash(&mut hasher),
-            ResizeMode::Width(w) => { 1u8.hash(&mut hasher); w.hash(&mut hasher); }
-            ResizeMode::Scale(s) => { 2u8.hash(&mut hasher); s.to_bits().hash(&mut hasher); }
+            ResizeMode::Width(w) => {
+                1u8.hash(&mut hasher);
+                w.hash(&mut hasher);
+            }
+            ResizeMode::Scale(s) => {
+                2u8.hash(&mut hasher);
+                s.to_bits().hash(&mut hasher);
+            }
         }
         std::mem::discriminant(&self.heuristic).hash(&mut hasher);
         std::mem::discriminant(&self.pack_mode).hash(&mut hasher);
@@ -233,7 +239,10 @@ impl AppConfig {
         // Hash compress
         match &self.compress {
             None => 0u8.hash(&mut hasher),
-            Some(CompressionLevel::Level(n)) => { 1u8.hash(&mut hasher); n.hash(&mut hasher); }
+            Some(CompressionLevel::Level(n)) => {
+                1u8.hash(&mut hasher);
+                n.hash(&mut hasher);
+            }
             Some(CompressionLevel::Max) => 2u8.hash(&mut hasher),
         }
         hasher.finish()

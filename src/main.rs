@@ -260,18 +260,18 @@ fn merge_config_with_args(args: &CommonArgs) -> Result<MergedConfig> {
     });
 
     // Resize: CLI options override config
-    let (resize_width, resize_scale) =
-        if args.resize_width.is_some() || args.resize_scale.is_some() {
-            (args.resize_width, args.resize_scale)
-        } else if let Some(ref lc) = loaded_config {
-            match &lc.config.resize {
-                Some(ResizeConfig::Width { width }) => (Some(*width), None),
-                Some(ResizeConfig::Scale { scale }) => (None, Some(*scale)),
-                None => (None, None),
-            }
-        } else {
-            (None, None)
-        };
+    let (resize_width, resize_scale) = if args.resize_width.is_some() || args.resize_scale.is_some()
+    {
+        (args.resize_width, args.resize_scale)
+    } else if let Some(ref lc) = loaded_config {
+        match &lc.config.resize {
+            Some(ResizeConfig::Width { width }) => (Some(*width), None),
+            Some(ResizeConfig::Scale { scale }) => (None, Some(*scale)),
+            None => (None, None),
+        }
+    } else {
+        (None, None)
+    };
 
     // Compress: CLI option overrides config
     let compress = if args.compress.is_some() {

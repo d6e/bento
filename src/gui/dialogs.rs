@@ -1,6 +1,65 @@
 use eframe::egui;
 use std::path::PathBuf;
 
+/// User's choice when prompted about unsaved changes
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum UnsavedChangesChoice {
+    /// Save changes before proceeding
+    Save,
+    /// Discard changes and proceed
+    DontSave,
+    /// Cancel the operation
+    Cancel,
+}
+
+/// Action that was deferred pending unsaved changes confirmation
+#[derive(Debug, Clone)]
+pub enum PendingAction {
+    /// User clicked "New"
+    NewProject,
+    /// User clicked "Open" and selected a file
+    OpenConfig(PathBuf),
+}
+
+/// Dialog shown when user has unsaved changes
+pub struct UnsavedChangesDialog {
+    pub pending_action: PendingAction,
+}
+
+impl UnsavedChangesDialog {
+    pub fn new(pending_action: PendingAction) -> Self {
+        Self { pending_action }
+    }
+
+    /// Show the dialog, returns Some(choice) when user makes a selection
+    pub fn show(&mut self, ctx: &egui::Context) -> Option<UnsavedChangesChoice> {
+        let mut result = None;
+
+        egui::Window::new("Unsaved Changes")
+            .collapsible(false)
+            .resizable(false)
+            .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
+            .show(ctx, |ui| {
+                ui.label("You have unsaved changes. What would you like to do?");
+                ui.add_space(12.0);
+
+                ui.horizontal(|ui| {
+                    if ui.button("Don't Save").clicked() {
+                        result = Some(UnsavedChangesChoice::DontSave);
+                    }
+                    if ui.button("Cancel").clicked() {
+                        result = Some(UnsavedChangesChoice::Cancel);
+                    }
+                    if ui.button("Save").clicked() {
+                        result = Some(UnsavedChangesChoice::Save);
+                    }
+                });
+            });
+
+        result
+    }
+}
+
 /// State for the config file chooser dialog
 pub struct ConfigChooserDialog {
     pub bento_files: Vec<PathBuf>,

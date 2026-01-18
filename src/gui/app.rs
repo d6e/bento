@@ -5,7 +5,10 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc;
 use std::time::{Duration, Instant};
 
-use super::dialogs::{ConfigChooserDialog, find_bento_files};
+use super::dialogs::{
+    ConfigChooserDialog, PendingAction, UnsavedChangesChoice, UnsavedChangesDialog,
+    find_bento_files,
+};
 use super::state::{
     AppConfig, AppState, BackgroundTask, Operation, OutputFormat, PackResult, ResizeMode, Status,
     StatusResult, ThumbnailState,
@@ -14,7 +17,7 @@ use super::thumbnail::spawn_thumbnail_loader;
 use super::{is_supported_image, panels};
 use crate::atlas::{Atlas, AtlasBuilder};
 use crate::cli::{CompressionLevel, PackMode, PackingHeuristic};
-use crate::config::{save_config, BentoConfig, LoadedConfig};
+use crate::config::{BentoConfig, LoadedConfig, save_config};
 use crate::output::{save_atlas_image, write_godot_resources, write_json, write_tpsheet};
 use crate::sprite::load_sprites;
 
@@ -25,6 +28,7 @@ const AUTO_REPACK_DEBOUNCE_MS: u64 = 300;
 pub struct BentoApp {
     state: AppState,
     config_chooser: Option<ConfigChooserDialog>,
+    unsaved_changes_dialog: Option<UnsavedChangesDialog>,
 }
 
 const LAST_INPUT_DIR_KEY: &str = "last_input_dir";
@@ -34,6 +38,7 @@ impl BentoApp {
         let mut app = Self {
             state: AppState::default(),
             config_chooser: None,
+            unsaved_changes_dialog: None,
         };
 
         // Restore persisted state
@@ -231,6 +236,26 @@ impl BentoApp {
         self.state.runtime.atlas_textures.clear();
         self.state.runtime.thumbnails.clear();
         self.state.runtime.last_packed_hash = None;
+    }
+
+    /// Execute a pending action (after unsaved changes confirmation)
+    fn execute_pending_action(&mut self, action: PendingAction) {
+        match action {
+            PendingAction::NewProject => self.new_project(),
+            PendingAction::OpenConfig(path) => self.load_config_file(&path),
+        }
+    }
+
+    /// Check if there are unsaved changes and show dialog if needed.
+    /// Returns true if the action can proceed immediately (no unsaved changes),
+    /// false if a dialog was shown (action is deferred).
+    fn check_unsaved_changes(&mut self, action: PendingAction) -> bool {
+        if self.state.runtime.is_config_dirty(&self.state.config) {
+            self.unsaved_changes_dialog = Some(UnsavedChangesDialog::new(action));
+            false
+        } else {
+            true
+        }
     }
 
     fn handle_dropped_files(&mut self, ctx: &egui::Context) {
@@ -799,6 +824,47 @@ impl eframe::App for BentoApp {
             }
         }
 
+        // Handle unsaved changes dialog
+        if let Some(ref mut dialog) = self.unsaved_changes_dialog {
+            if let Some(choice) = dialog.show(ctx) {
+                let pending_action = dialog.pending_action.clone();
+                self.unsaved_changes_dialog = None;
+
+                match choice {
+                    UnsavedChangesChoice::Cancel => {
+                        // Do nothing, user cancelled
+                    }
+                    UnsavedChangesChoice::DontSave => {
+                        // Proceed without saving
+                        self.execute_pending_action(pending_action);
+                    }
+                    UnsavedChangesChoice::Save => {
+                        // If no path, prompt for Save As first
+                        if self.state.runtime.config_path.is_none() {
+                            let dialog = rfd::FileDialog::new()
+                                .add_filter("Bento Config", &["bento"])
+                                .set_file_name("atlas.bento");
+                            if let Some(path) = dialog.save_file() {
+                                let path = if path.extension().is_some_and(|e| e == "bento") {
+                                    path
+                                } else {
+                                    path.with_extension("bento")
+                                };
+                                self.state.runtime.config_path = Some(path);
+                            }
+                        }
+                        // Now try to save (if we have a path)
+                        if self.state.runtime.config_path.is_some()
+                            && self.save_current_config().is_ok()
+                        {
+                            self.execute_pending_action(pending_action);
+                        }
+                        // If still no path (user cancelled Save As), don't proceed
+                    }
+                }
+            }
+        }
+
         // Handle dropped files
         self.handle_dropped_files(ctx);
 
@@ -859,23 +925,22 @@ impl eframe::App for BentoApp {
             .show(ctx, |ui| {
                 let action = panels::input_panel(ui, &mut self.state);
 
-                if action.new_project {
-                    // TODO: check dirty and prompt
+                if action.new_project && self.check_unsaved_changes(PendingAction::NewProject) {
                     self.new_project();
                 }
 
                 if let Some(path) = action.open_config_path {
                     if action.save_config_as {
-                        // Save As: set path and save
-                        self.state.runtime.config_path = Some(path);
+                        // Save As: set path and save (no unsaved changes check needed)
+                        self.state.runtime.config_path = Some(path.clone());
                         if let Err(e) = self.save_current_config() {
                             self.state.runtime.status = Status::Done {
                                 result: StatusResult::Error(format!("Failed to save: {}", e)),
                                 at: std::time::Instant::now(),
                             };
                         }
-                    } else {
-                        // Open: load the config
+                    } else if self.check_unsaved_changes(PendingAction::OpenConfig(path.clone())) {
+                        // Open: load the config (if no unsaved changes or user confirmed)
                         self.load_config_file(&path);
                     }
                 } else if action.save_config {
