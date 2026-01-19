@@ -196,6 +196,7 @@ pub fn preview_panel(ui: &mut egui::Ui, state: &mut AppState) {
                 };
 
                 response.clone().on_hover_ui_at_pointer(|ui| {
+                    ui.set_min_width(200.0);
                     ui.label(tooltip_text);
                 });
                 break;
