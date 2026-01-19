@@ -244,20 +244,33 @@ fn merge_config_with_args(args: &CommonArgs) -> Result<MergedConfig> {
     let verbose = args.verbose;
 
     // Heuristic: CLI > config > default
-    let heuristic = args.heuristic.unwrap_or_else(|| {
-        loaded_config
-            .as_ref()
-            .and_then(|lc| parse_heuristic(&lc.config.heuristic))
-            .unwrap_or(PackingHeuristic::BestShortSideFit)
-    });
+    let heuristic = if let Some(h) = args.heuristic {
+        h
+    } else if let Some(ref lc) = loaded_config {
+        parse_heuristic(&lc.config.heuristic).ok_or_else(|| {
+            anyhow::anyhow!(
+                "unknown heuristic '{}' in config file. Valid values: best-short-side-fit, \
+                 best-long-side-fit, best-area-fit, bottom-left, contact-point, best",
+                lc.config.heuristic
+            )
+        })?
+    } else {
+        PackingHeuristic::BestShortSideFit
+    };
 
     // Pack mode: CLI > config > default
-    let pack_mode = args.pack_mode.unwrap_or_else(|| {
-        loaded_config
-            .as_ref()
-            .and_then(|lc| parse_pack_mode(&lc.config.pack_mode))
-            .unwrap_or(PackMode::Single)
-    });
+    let pack_mode = if let Some(m) = args.pack_mode {
+        m
+    } else if let Some(ref lc) = loaded_config {
+        parse_pack_mode(&lc.config.pack_mode).ok_or_else(|| {
+            anyhow::anyhow!(
+                "unknown pack_mode '{}' in config file. Valid values: single, best",
+                lc.config.pack_mode
+            )
+        })?
+    } else {
+        PackMode::Single
+    };
 
     // Resize: CLI options override config
     let (resize_width, resize_scale) = if args.resize_width.is_some() || args.resize_scale.is_some()

@@ -16,6 +16,9 @@ pub struct LoadedConfig {
     pub config_dir: PathBuf,
 }
 
+/// Currently supported config file version
+pub const CONFIG_VERSION: u32 = 1;
+
 impl LoadedConfig {
     /// Load a config file from the given path.
     pub fn load(path: &Path) -> Result<Self> {
@@ -24,6 +27,15 @@ impl LoadedConfig {
 
         let config: BentoConfig = serde_json::from_str(&content)
             .with_context(|| format!("failed to parse config file: {}", path.display()))?;
+
+        // Validate config version
+        if config.version != CONFIG_VERSION {
+            bail!(
+                "unsupported config version: {}. This version of bento supports version {}.",
+                config.version,
+                CONFIG_VERSION
+            );
+        }
 
         let config_dir = path
             .parent()

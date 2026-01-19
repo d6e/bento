@@ -29,6 +29,8 @@ pub struct BentoApp {
     state: AppState,
     config_chooser: Option<ConfigChooserDialog>,
     unsaved_changes_dialog: Option<UnsavedChangesDialog>,
+    /// Set to true when user confirms they want to close (after save/discard dialog)
+    allowed_to_close: bool,
 }
 
 const LAST_INPUT_DIR_KEY: &str = "last_input_dir";
@@ -39,6 +41,7 @@ impl BentoApp {
             state: AppState::default(),
             config_chooser: None,
             unsaved_changes_dialog: None,
+            allowed_to_close: false,
         };
 
         // Restore persisted state
@@ -132,18 +135,39 @@ impl BentoApp {
 
         // Heuristic
         self.state.config.heuristic = match cfg.heuristic.as_str() {
+            "best-short-side-fit" => PackingHeuristic::BestShortSideFit,
             "best-long-side-fit" => PackingHeuristic::BestLongSideFit,
             "best-area-fit" => PackingHeuristic::BestAreaFit,
             "bottom-left" => PackingHeuristic::BottomLeft,
             "contact-point" => PackingHeuristic::ContactPoint,
             "best" => PackingHeuristic::Best,
-            _ => PackingHeuristic::BestShortSideFit,
+            unknown => {
+                self.state.runtime.status = Status::Done {
+                    result: StatusResult::Error(format!(
+                        "Unknown heuristic '{}' in config. Valid: best-short-side-fit, \
+                         best-long-side-fit, best-area-fit, bottom-left, contact-point, best",
+                        unknown
+                    )),
+                    at: std::time::Instant::now(),
+                };
+                return;
+            }
         };
 
         // Pack mode
         self.state.config.pack_mode = match cfg.pack_mode.as_str() {
+            "single" => PackMode::Single,
             "best" => PackMode::Best,
-            _ => PackMode::Single,
+            unknown => {
+                self.state.runtime.status = Status::Done {
+                    result: StatusResult::Error(format!(
+                        "Unknown pack_mode '{}' in config. Valid: single, best",
+                        unknown
+                    )),
+                    at: std::time::Instant::now(),
+                };
+                return;
+            }
         };
 
         // Compress
@@ -239,10 +263,14 @@ impl BentoApp {
     }
 
     /// Execute a pending action (after unsaved changes confirmation)
-    fn execute_pending_action(&mut self, action: PendingAction) {
+    fn execute_pending_action(&mut self, action: PendingAction, ctx: &egui::Context) {
         match action {
             PendingAction::NewProject => self.new_project(),
             PendingAction::OpenConfig(path) => self.load_config_file(&path),
+            PendingAction::CloseWindow => {
+                self.allowed_to_close = true;
+                ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+            }
         }
     }
 
@@ -814,6 +842,18 @@ impl eframe::App for BentoApp {
         };
         ctx.send_viewport_cmd(egui::ViewportCommand::Title(title));
 
+        // Handle window close request
+        if ctx.input(|i| i.viewport().close_requested()) {
+            if self.allowed_to_close {
+                // User already confirmed, allow close
+            } else if self.state.runtime.is_config_dirty(&self.state.config) {
+                // Has unsaved changes, show confirmation dialog
+                ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
+                self.unsaved_changes_dialog = Some(UnsavedChangesDialog::new(PendingAction::CloseWindow));
+            }
+            // If not dirty, allow the close to proceed naturally
+        }
+
         // Handle config chooser dialog
         if let Some(ref mut chooser) = self.config_chooser {
             if let Some(selected) = chooser.show(ctx) {
@@ -836,7 +876,7 @@ impl eframe::App for BentoApp {
                     }
                     UnsavedChangesChoice::DontSave => {
                         // Proceed without saving
-                        self.execute_pending_action(pending_action);
+                        self.execute_pending_action(pending_action, ctx);
                     }
                     UnsavedChangesChoice::Save => {
                         // If no path, prompt for Save As first
@@ -857,7 +897,7 @@ impl eframe::App for BentoApp {
                         if self.state.runtime.config_path.is_some()
                             && self.save_current_config().is_ok()
                         {
-                            self.execute_pending_action(pending_action);
+                            self.execute_pending_action(pending_action, ctx);
                         }
                         // If still no path (user cancelled Save As), don't proceed
                     }

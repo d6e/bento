@@ -19,6 +19,8 @@ pub enum PendingAction {
     NewProject,
     /// User clicked "Open" and selected a file
     OpenConfig(PathBuf),
+    /// User is trying to close the window
+    CloseWindow,
 }
 
 /// Dialog shown when user has unsaved changes
