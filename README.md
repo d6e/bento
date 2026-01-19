@@ -56,9 +56,10 @@ cargo build --release --features gui # CLI + GUI
 Bento uses subcommands to select the output format:
 
 ```bash
-bento json sprites/*.png -o output/   # JSON metadata (recommended)
-bento godot sprites/*.png -o output/  # Individual Godot .tres files
-bento gui                             # Launch GUI (requires --features gui)
+bento json sprites/*.png -o output/    # JSON metadata (recommended)
+bento godot sprites/*.png -o output/   # Individual Godot .tres files
+bento tpsheet sprites/*.png -o output/ # TexturePacker-compatible .tpsheet
+bento gui                              # Launch GUI (requires --features gui)
 ```
 
 ### Examples
@@ -117,6 +118,7 @@ bento json sprites/*.png -o output/ --compress max    # maximum compression (slo
 
 | Option | Default | Description |
 |--------|---------|-------------|
+| `-c, --config` | - | Load settings from a `.bento` config file |
 | `-o, --output` | `.` | Output directory |
 | `-n, --name` | `atlas` | Base name for output files |
 | `--max-width` | `4096` | Maximum atlas width |
@@ -279,6 +281,48 @@ margin = Rect2(2, 2, 4, 4)
 ```
 
 The `margin` field preserves original sprite dimensions when trimming is enabled.
+
+### TexturePacker (.tpsheet)
+
+Generates a `.tpsheet` JSON file compatible with TexturePacker's generic JSON format. Useful for engines and tools that support TexturePacker imports.
+
+```bash
+bento tpsheet sprites/*.png -o output/
+```
+
+## Config Files
+
+You can save packing settings in a `.bento` JSON config file for reproducible builds:
+
+```json
+{
+  "version": 1,
+  "input": ["sprites/*.png", "ui/*.png"],
+  "output_dir": "output",
+  "name": "atlas",
+  "format": "json",
+  "max_width": 2048,
+  "max_height": 2048,
+  "padding": 2,
+  "pot": true,
+  "trim": true,
+  "trim_margin": 0,
+  "extrude": 1,
+  "heuristic": "best",
+  "pack_mode": "best",
+  "compress": 4
+}
+```
+
+Use the config file with the `--config` flag:
+
+```bash
+bento json --config project.bento
+```
+
+Paths in the config file are relative to the config file location. CLI arguments override config file settings.
+
+The GUI can also save and load `.bento` config files via the input panel buttons.
 
 ## License
 
