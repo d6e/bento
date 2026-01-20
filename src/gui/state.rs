@@ -9,6 +9,7 @@ use std::time::{Duration, Instant};
 
 use crate::atlas::Atlas;
 use crate::cli::{CompressionLevel, PackMode, PackingHeuristic};
+use crate::gui::dialogs::PendingAction;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // GUI-specific enums
@@ -60,6 +61,22 @@ pub struct PackResult {
 pub struct BackgroundTask<T> {
     receiver: mpsc::Receiver<Result<T, String>>,
     cancel_token: Option<Arc<AtomicBool>>,
+}
+
+/// Types of file dialog operations
+#[derive(Clone, Copy)]
+pub enum FileDialogKind {
+    OpenConfig,
+    SaveConfigAs,
+    AddFiles,
+    AddFolder,
+    OutputFolder,
+}
+
+/// Result from a file dialog operation
+pub enum FileDialogResult {
+    SinglePath(Option<PathBuf>),
+    MultiplePaths(Option<Vec<PathBuf>>),
 }
 
 impl<T> BackgroundTask<T> {
@@ -300,6 +317,13 @@ pub struct RuntimeState {
 
     /// Hash of config when last saved, for dirty detection
     pub last_saved_config_hash: Option<u64>,
+
+    /// Background file dialog task
+    pub file_dialog_task: Option<BackgroundTask<FileDialogResult>>,
+    /// Which dialog type is pending (to know how to handle the result)
+    pub pending_file_dialog: Option<FileDialogKind>,
+    /// Action to execute after Save As dialog completes (from unsaved changes dialog)
+    pub save_before_action: Option<PendingAction>,
 }
 
 impl Default for RuntimeState {
@@ -338,6 +362,10 @@ impl Default for RuntimeState {
 
             config_path: None,
             last_saved_config_hash: None,
+
+            file_dialog_task: None,
+            pending_file_dialog: None,
+            save_before_action: None,
         }
     }
 }

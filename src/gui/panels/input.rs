@@ -1,6 +1,5 @@
 use eframe::egui;
 
-use crate::gui::is_supported_image;
 use crate::gui::state::{AppState, OutputFormat, ThumbnailState};
 use crate::gui::thumbnail::THUMBNAIL_SIZE;
 
@@ -9,8 +8,12 @@ use crate::gui::thumbnail::THUMBNAIL_SIZE;
 pub struct InputPanelAction {
     pub new_project: bool,
     pub save_config: bool,
-    pub save_config_as: bool,
-    pub open_config_path: Option<std::path::PathBuf>,
+    // Dialog requests (run in background threads)
+    pub request_open_config_dialog: bool,
+    pub request_save_as_dialog: bool,
+    pub request_add_files_dialog: bool,
+    pub request_add_folder_dialog: bool,
+    pub request_output_folder_dialog: bool,
 }
 
 /// Input panel with file list, output path, and format selection
@@ -24,10 +27,7 @@ pub fn input_panel(ui: &mut egui::Ui, state: &mut AppState) -> InputPanelAction 
         }
 
         if ui.button("Open").clicked() {
-            let dialog = rfd::FileDialog::new().add_filter("Bento Config", &["bento"]);
-            if let Some(path) = dialog.pick_file() {
-                action.open_config_path = Some(path);
-            }
+            action.request_open_config_dialog = true;
         }
 
         // Save button - enabled only if we have a config path
@@ -40,22 +40,7 @@ pub fn input_panel(ui: &mut egui::Ui, state: &mut AppState) -> InputPanelAction 
         }
 
         if ui.button("Save As").clicked() {
-            let mut dialog = rfd::FileDialog::new()
-                .add_filter("Bento Config", &["bento"])
-                .set_file_name("atlas.bento");
-            if let Some(dir) = &state.runtime.last_input_dir {
-                dialog = dialog.set_directory(dir);
-            }
-            if let Some(path) = dialog.save_file() {
-                // Ensure .bento extension
-                let path = if path.extension().is_some_and(|e| e == "bento") {
-                    path
-                } else {
-                    path.with_extension("bento")
-                };
-                action.open_config_path = Some(path);
-                action.save_config_as = true;
-            }
+            action.request_save_as_dialog = true;
         }
     });
 
@@ -82,38 +67,11 @@ pub fn input_panel(ui: &mut egui::Ui, state: &mut AppState) -> InputPanelAction 
     // File action buttons
     ui.horizontal(|ui| {
         if ui.button("+ Add Files").clicked() {
-            let mut dialog = rfd::FileDialog::new()
-                .add_filter("Images", &["png", "jpg", "jpeg", "gif", "bmp", "webp"]);
-            if let Some(dir) = &state.runtime.last_input_dir {
-                dialog = dialog.set_directory(dir);
-            }
-            if let Some(paths) = dialog.pick_files() {
-                // Remember the directory of the first file
-                if let Some(first) = paths.first() {
-                    state.runtime.last_input_dir = first.parent().map(|p| p.to_path_buf());
-                }
-                state.config.input_paths.extend(paths);
-            }
+            action.request_add_files_dialog = true;
         }
 
         if ui.button("+ Add Folder").clicked() {
-            let mut dialog = rfd::FileDialog::new();
-            if let Some(dir) = &state.runtime.last_input_dir {
-                dialog = dialog.set_directory(dir);
-            }
-            if let Some(folder) = dialog.pick_folder() {
-                // Remember this folder
-                state.runtime.last_input_dir = Some(folder.clone());
-                // Recursively add image files from folder
-                if let Ok(entries) = std::fs::read_dir(&folder) {
-                    for entry in entries.flatten() {
-                        let path = entry.path();
-                        if path.is_file() && is_supported_image(&path) {
-                            state.config.input_paths.push(path);
-                        }
-                    }
-                }
-            }
+            action.request_add_folder_dialog = true;
         }
     });
 
@@ -336,12 +294,8 @@ pub fn input_panel(ui: &mut egui::Ui, state: &mut AppState) -> InputPanelAction 
             ui.label("...");
         }
 
-        if ui.button("...").clicked()
-            && let Some(folder) = rfd::FileDialog::new()
-                .set_directory(&state.config.output_dir)
-                .pick_folder()
-        {
-            state.config.output_dir = folder;
+        if ui.button("...").clicked() {
+            action.request_output_folder_dialog = true;
         }
     });
 

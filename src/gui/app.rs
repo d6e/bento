@@ -10,8 +10,8 @@ use super::dialogs::{
     find_bento_files,
 };
 use super::state::{
-    AppConfig, AppState, BackgroundTask, Operation, OutputFormat, PackResult, ResizeMode, Status,
-    StatusResult, ThumbnailState,
+    AppConfig, AppState, BackgroundTask, FileDialogKind, FileDialogResult, Operation, OutputFormat,
+    PackResult, ResizeMode, Status, StatusResult, ThumbnailState,
 };
 use super::thumbnail::spawn_thumbnail_loader;
 use super::{is_supported_image, panels};
@@ -676,6 +676,104 @@ impl BentoApp {
             .thumbnails
             .retain(|path, _| self.state.config.input_paths.contains(path));
     }
+
+    /// Poll background file dialog task for completion
+    fn poll_file_dialog_task(&mut self, ctx: &egui::Context) {
+        if let Some(task) = &self.state.runtime.file_dialog_task
+            && let Some(result) = task.poll()
+        {
+            let kind = self.state.runtime.pending_file_dialog.take();
+            self.state.runtime.file_dialog_task = None;
+
+            if let Ok(dialog_result) = result {
+                match (kind, dialog_result) {
+                    (Some(FileDialogKind::OpenConfig), FileDialogResult::SinglePath(Some(path))) => {
+                        // Check unsaved changes before loading
+                        if self.check_unsaved_changes(PendingAction::OpenConfig(path.clone())) {
+                            self.load_config_file(&path);
+                        }
+                    }
+                    (Some(FileDialogKind::SaveConfigAs), FileDialogResult::SinglePath(Some(path))) => {
+                        // Ensure .bento extension
+                        let path = if path.extension().is_some_and(|e| e == "bento") {
+                            path
+                        } else {
+                            path.with_extension("bento")
+                        };
+                        self.state.runtime.config_path = Some(path);
+                        if let Err(e) = self.save_current_config() {
+                            self.state.runtime.status = Status::Done {
+                                result: StatusResult::Error(format!("Failed to save: {}", e)),
+                                at: Instant::now(),
+                            };
+                        } else if let Some(pending_action) =
+                            self.state.runtime.save_before_action.take()
+                        {
+                            // This was a Save As from unsaved changes dialog, execute pending action
+                            self.execute_pending_action(pending_action, ctx);
+                        }
+                    }
+                    (Some(FileDialogKind::SaveConfigAs), FileDialogResult::SinglePath(None)) => {
+                        // User cancelled Save As, clear any pending action
+                        self.state.runtime.save_before_action = None;
+                    }
+                    (Some(FileDialogKind::AddFiles), FileDialogResult::MultiplePaths(Some(paths))) => {
+                        if let Some(first) = paths.first() {
+                            self.state.runtime.last_input_dir =
+                                first.parent().map(|p| p.to_path_buf());
+                        }
+                        self.state.config.input_paths.extend(paths);
+                    }
+                    (Some(FileDialogKind::AddFolder), FileDialogResult::SinglePath(Some(folder))) => {
+                        self.state.runtime.last_input_dir = Some(folder.clone());
+                        if let Ok(entries) = std::fs::read_dir(&folder) {
+                            for entry in entries.flatten() {
+                                let path = entry.path();
+                                if path.is_file() && is_supported_image(&path) {
+                                    self.state.config.input_paths.push(path);
+                                }
+                            }
+                        }
+                    }
+                    (Some(FileDialogKind::OutputFolder), FileDialogResult::SinglePath(Some(folder))) => {
+                        self.state.config.output_dir = folder;
+                    }
+                    // Dialog was cancelled or returned None
+                    _ => {}
+                }
+            }
+        }
+    }
+
+    /// Spawn a file dialog if not already running
+    fn spawn_file_dialog(&mut self, kind: FileDialogKind) {
+        // Don't spawn if one is already running
+        if self.state.runtime.file_dialog_task.is_some() {
+            return;
+        }
+
+        let task = match kind {
+            FileDialogKind::OpenConfig => {
+                spawn_open_config_dialog(self.state.runtime.last_input_dir.clone())
+            }
+            FileDialogKind::SaveConfigAs => spawn_save_as_dialog(
+                self.state.runtime.last_input_dir.clone(),
+                "atlas.bento",
+            ),
+            FileDialogKind::AddFiles => {
+                spawn_add_files_dialog(self.state.runtime.last_input_dir.clone())
+            }
+            FileDialogKind::AddFolder => {
+                spawn_add_folder_dialog(self.state.runtime.last_input_dir.clone())
+            }
+            FileDialogKind::OutputFolder => {
+                spawn_output_folder_dialog(self.state.config.output_dir.clone())
+            }
+        };
+
+        self.state.runtime.file_dialog_task = Some(task);
+        self.state.runtime.pending_file_dialog = Some(kind);
+    }
 }
 
 /// Perform packing on a background thread
@@ -815,6 +913,79 @@ fn estimate_png_size(
     }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// File Dialog Helpers (run dialogs in background threads)
+// ─────────────────────────────────────────────────────────────────────────────
+
+fn spawn_open_config_dialog(last_dir: Option<PathBuf>) -> BackgroundTask<FileDialogResult> {
+    let (tx, rx) = mpsc::channel();
+    std::thread::spawn(move || {
+        let mut dialog = rfd::FileDialog::new().add_filter("Bento Config", &["bento"]);
+        if let Some(dir) = last_dir {
+            dialog = dialog.set_directory(dir);
+        }
+        let result = FileDialogResult::SinglePath(dialog.pick_file());
+        let _ = tx.send(Ok(result));
+    });
+    BackgroundTask::new(rx)
+}
+
+fn spawn_save_as_dialog(
+    last_dir: Option<PathBuf>,
+    default_name: &str,
+) -> BackgroundTask<FileDialogResult> {
+    let (tx, rx) = mpsc::channel();
+    let default_name = default_name.to_string();
+    std::thread::spawn(move || {
+        let mut dialog = rfd::FileDialog::new()
+            .add_filter("Bento Config", &["bento"])
+            .set_file_name(&default_name);
+        if let Some(dir) = last_dir {
+            dialog = dialog.set_directory(dir);
+        }
+        let result = FileDialogResult::SinglePath(dialog.save_file());
+        let _ = tx.send(Ok(result));
+    });
+    BackgroundTask::new(rx)
+}
+
+fn spawn_add_files_dialog(last_dir: Option<PathBuf>) -> BackgroundTask<FileDialogResult> {
+    let (tx, rx) = mpsc::channel();
+    std::thread::spawn(move || {
+        let mut dialog = rfd::FileDialog::new()
+            .add_filter("Images", &["png", "jpg", "jpeg", "gif", "bmp", "webp"]);
+        if let Some(dir) = last_dir {
+            dialog = dialog.set_directory(dir);
+        }
+        let result = FileDialogResult::MultiplePaths(dialog.pick_files());
+        let _ = tx.send(Ok(result));
+    });
+    BackgroundTask::new(rx)
+}
+
+fn spawn_add_folder_dialog(last_dir: Option<PathBuf>) -> BackgroundTask<FileDialogResult> {
+    let (tx, rx) = mpsc::channel();
+    std::thread::spawn(move || {
+        let mut dialog = rfd::FileDialog::new();
+        if let Some(dir) = last_dir {
+            dialog = dialog.set_directory(dir);
+        }
+        let result = FileDialogResult::SinglePath(dialog.pick_folder());
+        let _ = tx.send(Ok(result));
+    });
+    BackgroundTask::new(rx)
+}
+
+fn spawn_output_folder_dialog(current_dir: PathBuf) -> BackgroundTask<FileDialogResult> {
+    let (tx, rx) = mpsc::channel();
+    std::thread::spawn(move || {
+        let dialog = rfd::FileDialog::new().set_directory(&current_dir);
+        let result = FileDialogResult::SinglePath(dialog.pick_folder());
+        let _ = tx.send(Ok(result));
+    });
+    BackgroundTask::new(rx)
+}
+
 impl eframe::App for BentoApp {
     fn save(&mut self, storage: &mut dyn eframe::Storage) {
         eframe::set_value(
@@ -879,27 +1050,17 @@ impl eframe::App for BentoApp {
                         self.execute_pending_action(pending_action, ctx);
                     }
                     UnsavedChangesChoice::Save => {
-                        // If no path, prompt for Save As first
+                        // If no path, prompt for Save As first (async)
                         if self.state.runtime.config_path.is_none() {
-                            let dialog = rfd::FileDialog::new()
-                                .add_filter("Bento Config", &["bento"])
-                                .set_file_name("atlas.bento");
-                            if let Some(path) = dialog.save_file() {
-                                let path = if path.extension().is_some_and(|e| e == "bento") {
-                                    path
-                                } else {
-                                    path.with_extension("bento")
-                                };
-                                self.state.runtime.config_path = Some(path);
+                            // Spawn Save As dialog and remember the pending action
+                            self.state.runtime.save_before_action = Some(pending_action);
+                            self.spawn_file_dialog(FileDialogKind::SaveConfigAs);
+                        } else {
+                            // We have a path, save and proceed
+                            if self.save_current_config().is_ok() {
+                                self.execute_pending_action(pending_action, ctx);
                             }
                         }
-                        // Now try to save (if we have a path)
-                        if self.state.runtime.config_path.is_some()
-                            && self.save_current_config().is_ok()
-                        {
-                            self.execute_pending_action(pending_action, ctx);
-                        }
-                        // If still no path (user cancelled Save As), don't proceed
                     }
                 }
             }
@@ -912,6 +1073,7 @@ impl eframe::App for BentoApp {
         self.poll_pack_task(ctx);
         self.poll_export_task();
         self.poll_size_estimate_task();
+        self.poll_file_dialog_task(ctx);
 
         // Handle thumbnails
         self.queue_thumbnail_loading();
@@ -930,6 +1092,7 @@ impl eframe::App for BentoApp {
             || self.state.runtime.pending_repack_at.is_some()
             || self.state.runtime.thumbnail_receiver.is_some()
             || self.state.runtime.size_estimate_task.is_some()
+            || self.state.runtime.file_dialog_task.is_some()
         {
             ctx.request_repaint();
         }
@@ -969,27 +1132,30 @@ impl eframe::App for BentoApp {
                     self.new_project();
                 }
 
-                if let Some(path) = action.open_config_path {
-                    if action.save_config_as {
-                        // Save As: set path and save (no unsaved changes check needed)
-                        self.state.runtime.config_path = Some(path.clone());
-                        if let Err(e) = self.save_current_config() {
-                            self.state.runtime.status = Status::Done {
-                                result: StatusResult::Error(format!("Failed to save: {}", e)),
-                                at: std::time::Instant::now(),
-                            };
-                        }
-                    } else if self.check_unsaved_changes(PendingAction::OpenConfig(path.clone())) {
-                        // Open: load the config (if no unsaved changes or user confirmed)
-                        self.load_config_file(&path);
-                    }
-                } else if action.save_config {
+                if action.save_config {
                     if let Err(e) = self.save_current_config() {
                         self.state.runtime.status = Status::Done {
                             result: StatusResult::Error(format!("Failed to save: {}", e)),
                             at: std::time::Instant::now(),
                         };
                     }
+                }
+
+                // Spawn file dialogs (these run in background threads)
+                if action.request_open_config_dialog {
+                    self.spawn_file_dialog(FileDialogKind::OpenConfig);
+                }
+                if action.request_save_as_dialog {
+                    self.spawn_file_dialog(FileDialogKind::SaveConfigAs);
+                }
+                if action.request_add_files_dialog {
+                    self.spawn_file_dialog(FileDialogKind::AddFiles);
+                }
+                if action.request_add_folder_dialog {
+                    self.spawn_file_dialog(FileDialogKind::AddFolder);
+                }
+                if action.request_output_folder_dialog {
+                    self.spawn_file_dialog(FileDialogKind::OutputFolder);
                 }
             });
 
