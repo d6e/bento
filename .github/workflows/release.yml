@@ -147,9 +147,91 @@ jobs:
           name: bento-gui-${{ github.ref_name }}-macos-universal
           path: bento-gui-${{ github.ref_name }}-macos-universal.tar.gz
 
+  package-linux:
+    name: Package Linux (AppImage & .deb)
+    needs: [version-check]
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: linux-packager
+
+      - name: Install Linux GUI dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libxcb-render0-dev \
+            libxcb-shape0-dev \
+            libxcb-xfixes0-dev \
+            libxkbcommon-dev \
+            libgtk-3-dev
+
+      - name: Install cargo-packager
+        run: cargo install cargo-packager --locked
+
+      - name: Package AppImage and .deb
+        run: cargo packager --release --formats appimage,deb
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-packages-${{ github.ref_name }}
+          path: |
+            target/release/*.AppImage
+            target/release/*.deb
+
+  package-macos:
+    name: Package macOS (.app & .dmg)
+    needs: [version-check]
+    runs-on: macos-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-apple-darwin,aarch64-apple-darwin
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: macos-packager
+
+      - name: Build x86_64
+        run: cargo build --release --target x86_64-apple-darwin --features gui
+
+      - name: Build aarch64
+        run: cargo build --release --target aarch64-apple-darwin --features gui
+
+      - name: Create universal binary
+        run: |
+          mkdir -p target/release
+          lipo -create \
+            target/x86_64-apple-darwin/release/bento \
+            target/aarch64-apple-darwin/release/bento \
+            -output target/release/bento
+
+      - name: Install cargo-packager
+        run: cargo install cargo-packager --locked
+
+      - name: Package .app and .dmg
+        run: cargo packager --release --formats app,dmg
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-packages-${{ github.ref_name }}
+          path: |
+            target/release/*.app
+            target/release/*.dmg
+
   release:
     name: Create Release
-    needs: [build, build-macos-universal]
+    needs: [build, build-macos-universal, package-linux, package-macos]
     runs-on: ubuntu-latest
     permissions:
       contents: write
