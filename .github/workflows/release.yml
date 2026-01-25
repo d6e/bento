@@ -220,6 +220,16 @@ jobs:
 
       - name: Package .app and .dmg
         run: cargo packager --release --formats app,dmg
+        env:
+          # Skip before-packaging-command since we already built a universal binary
+          CARGO_PACKAGER_BEFORE_PACKAGING_COMMAND: "true"
+
+      - name: Rename DMG to universal
+        run: |
+          cd target/release
+          for f in *.dmg; do
+            mv "$f" "${f/_aarch64/_universal}"
+          done
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
