@@ -11,29 +11,21 @@ default = []
 gui = ["dep:eframe", "dep:egui_extras", "dep:rfd"]
 
 [package.metadata.packager]
-product_name = "Bento"
+before-packaging-command = "cargo build --release --features gui"
+product-name = "Bento"
 identifier = "io.github.d6e.bento"
-categories = ["Graphics", "Development"]
-
-[package.metadata.packager.desktop]
-name = "Bento"
-comment = "Sprite atlas packer for Godot 4.x"
-exec = "bento"
-icon = "bento"
-terminal = false
-type = "Application"
-categories = "Graphics;Development;"
-mime_type = "image/png;"
-
-[package.metadata.packager.icons]
-"dist/icons/16x16.png" = { target = "16x16" }
-"dist/icons/32x32.png" = { target = "32x32" }
-"dist/icons/48x48.png" = { target = "48x48" }
-"dist/icons/64x64.png" = { target = "64x64" }
-"dist/icons/128x128.png" = { target = "128x128" }
-"dist/icons/256x256.png" = { target = "256x256" }
-"dist/icons/512x512.png" = { target = "512x512" }
-"dist/icons/bento.icns" = { target = "macos" }
+category = "Graphics and Design"
+icons = [
+  "dist/icons/16x16.png",
+  "dist/icons/32x32.png",
+  "dist/icons/48x48.png",
+  "dist/icons/64x64.png",
+  "dist/icons/128x128.png",
+  "dist/icons/256x256.png",
+  "dist/icons/512x512.png",
+  "dist/icons/bento.icns",
+]
+resources = ["dist/linux/bento.desktop"]
 
 [package.metadata.packager.deb]
 depends = ["libxcb-render0", "libxcb-shape0", "libxcb-xfixes0", "libxkbcommon0", "libgtk-3-0"]
@@ -41,13 +33,12 @@ section = "graphics"
 priority = "optional"
 
 [package.metadata.packager.macos]
-minimum_system_version = "10.13"
-frameworks = []
+minimum-system-version = "10.13"
 
 [package.metadata.packager.dmg]
-window_size = { width = 600, height = 400 }
-app_position = { x = 180, y = 170 }
-application_folder_position = { x = 420, y = 170 }
+window-size = { width = 600, height = 400 }
+app-position = { x = 180, y = 170 }
+application-folder-position = { x = 420, y = 170 }
 
 [dependencies]
 clap = { version = "4.5", features = ["derive"] }
