@@ -64,7 +64,7 @@ sudo apt-get install -f  # Install any missing dependencies
 
 ```bash
 brew tap d6e/homebrew-tap
-brew install bento           # CLI with GUI support
+brew install bento-packer    # CLI with GUI support
 brew install --cask bento    # GUI app in /Applications
 ```
 
