@@ -60,7 +60,20 @@ sudo apt-get install -f  # Install any missing dependencies
 
 ### macOS
 
-**DMG Installer (recommended):**
+**Homebrew (recommended):**
+
+```bash
+brew tap d6e/homebrew-tap
+brew install bento
+```
+
+Or install directly without tapping:
+
+```bash
+brew install https://raw.githubusercontent.com/d6e/bento/main/Formula/bento.rb
+```
+
+**DMG Installer:**
 
 Download the `.dmg` from [Releases](https://github.com/d6e/bento/releases), open it, and drag Bento to Applications.
 
