@@ -687,13 +687,19 @@ impl BentoApp {
 
             if let Ok(dialog_result) = result {
                 match (kind, dialog_result) {
-                    (Some(FileDialogKind::OpenConfig), FileDialogResult::SinglePath(Some(path))) => {
+                    (
+                        Some(FileDialogKind::OpenConfig),
+                        FileDialogResult::SinglePath(Some(path)),
+                    ) => {
                         // Check unsaved changes before loading
                         if self.check_unsaved_changes(PendingAction::OpenConfig(path.clone())) {
                             self.load_config_file(&path);
                         }
                     }
-                    (Some(FileDialogKind::SaveConfigAs), FileDialogResult::SinglePath(Some(path))) => {
+                    (
+                        Some(FileDialogKind::SaveConfigAs),
+                        FileDialogResult::SinglePath(Some(path)),
+                    ) => {
                         // Ensure .bento extension
                         let path = if path.extension().is_some_and(|e| e == "bento") {
                             path
@@ -717,14 +723,20 @@ impl BentoApp {
                         // User cancelled Save As, clear any pending action
                         self.state.runtime.save_before_action = None;
                     }
-                    (Some(FileDialogKind::AddFiles), FileDialogResult::MultiplePaths(Some(paths))) => {
+                    (
+                        Some(FileDialogKind::AddFiles),
+                        FileDialogResult::MultiplePaths(Some(paths)),
+                    ) => {
                         if let Some(first) = paths.first() {
                             self.state.runtime.last_input_dir =
                                 first.parent().map(|p| p.to_path_buf());
                         }
                         self.state.config.input_paths.extend(paths);
                     }
-                    (Some(FileDialogKind::AddFolder), FileDialogResult::SinglePath(Some(folder))) => {
+                    (
+                        Some(FileDialogKind::AddFolder),
+                        FileDialogResult::SinglePath(Some(folder)),
+                    ) => {
                         self.state.runtime.last_input_dir = Some(folder.clone());
                         if let Ok(entries) = std::fs::read_dir(&folder) {
                             for entry in entries.flatten() {
@@ -735,7 +747,10 @@ impl BentoApp {
                             }
                         }
                     }
-                    (Some(FileDialogKind::OutputFolder), FileDialogResult::SinglePath(Some(folder))) => {
+                    (
+                        Some(FileDialogKind::OutputFolder),
+                        FileDialogResult::SinglePath(Some(folder)),
+                    ) => {
                         self.state.config.output_dir = folder;
                     }
                     // Dialog was cancelled or returned None
@@ -756,10 +771,9 @@ impl BentoApp {
             FileDialogKind::OpenConfig => {
                 spawn_open_config_dialog(self.state.runtime.last_input_dir.clone())
             }
-            FileDialogKind::SaveConfigAs => spawn_save_as_dialog(
-                self.state.runtime.last_input_dir.clone(),
-                "atlas.bento",
-            ),
+            FileDialogKind::SaveConfigAs => {
+                spawn_save_as_dialog(self.state.runtime.last_input_dir.clone(), "atlas.bento")
+            }
             FileDialogKind::AddFiles => {
                 spawn_add_files_dialog(self.state.runtime.last_input_dir.clone())
             }
@@ -1020,7 +1034,8 @@ impl eframe::App for BentoApp {
             } else if self.state.runtime.is_config_dirty(&self.state.config) {
                 // Has unsaved changes, show confirmation dialog
                 ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
-                self.unsaved_changes_dialog = Some(UnsavedChangesDialog::new(PendingAction::CloseWindow));
+                self.unsaved_changes_dialog =
+                    Some(UnsavedChangesDialog::new(PendingAction::CloseWindow));
             }
             // If not dirty, allow the close to proceed naturally
         }

@@ -11,6 +11,7 @@ use bento::config::{CompressConfig, LoadedConfig, ResizeConfig};
 use bento::output::{save_atlas_image, write_godot_resources, write_json, write_tpsheet};
 use bento::sprite::load_sprites;
 
+#[allow(clippy::print_stderr)]
 fn main() {
     if let Err(e) = run() {
         // Use eprintln instead of error! because logger may not be initialized
