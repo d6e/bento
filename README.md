@@ -40,6 +40,34 @@ Packing and export run in background threads with cancel support.
 
 ## Installation
 
+### Linux
+
+**AppImage (recommended):**
+
+Download from [Releases](https://github.com/d6e/bento/releases) and run:
+
+```bash
+chmod +x Bento-*.AppImage
+./Bento-*.AppImage
+```
+
+**Debian/Ubuntu (.deb):**
+
+```bash
+sudo dpkg -i bento_*.deb
+sudo apt-get install -f  # Install any missing dependencies
+```
+
+### macOS
+
+**DMG Installer (recommended):**
+
+Download the `.dmg` from [Releases](https://github.com/d6e/bento/releases), open it, and drag Bento to Applications.
+
+**Note:** First launch may show "unidentified developer" warning. Right-click the app and select "Open" to bypass.
+
+### From Source
+
 ```bash
 cargo install --path .
 ```
