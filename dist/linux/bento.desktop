@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Bento
+Comment=Sprite atlas packer for Godot 4.x
+Exec=bento
+Icon=bento
+Terminal=false
+Categories=Graphics;Development;
+MimeType=image/png;
+Keywords=sprite;atlas;texture;packer;godot;
