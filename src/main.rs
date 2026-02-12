@@ -72,6 +72,7 @@ fn run() -> Result<()> {
         merged.resize_width,
         merged.resize_scale,
         None, // No cancellation for CLI
+        merged.base_dir.as_deref(),
     )?;
     info!("Loaded {} sprites", sprites.len());
 
@@ -122,6 +123,8 @@ fn run() -> Result<()> {
 /// Merged configuration from CLI args and optional config file.
 struct MergedConfig {
     input: Vec<PathBuf>,
+    /// Base directory for computing relative sprite names (from config file location)
+    base_dir: Option<PathBuf>,
     output: PathBuf,
     name: String,
     max_width: u32,
@@ -154,14 +157,18 @@ fn merge_config_with_args(args: &CommonArgs) -> Result<MergedConfig> {
     };
 
     // Determine input files: CLI args override config
-    let input = if !args.input.is_empty() {
-        args.input.clone()
+    // When inputs come from a config file, preserve the config directory as the
+    // base for computing relative sprite names (e.g., "ironclad/bash.png").
+    let (input, base_dir) = if !args.input.is_empty() {
+        (args.input.clone(), None)
     } else if let Some(ref lc) = loaded_config {
-        lc.resolve_inputs()
-            .context("failed to resolve input files from config")?
+        let inputs = lc
+            .resolve_inputs()
+            .context("failed to resolve input files from config")?;
+        (inputs, Some(lc.config_dir.clone()))
     } else {
         // This shouldn't happen due to clap's required_unless_present
-        Vec::new()
+        (Vec::new(), None)
     };
 
     // Determine output directory: CLI > config > default
@@ -301,6 +308,7 @@ fn merge_config_with_args(args: &CommonArgs) -> Result<MergedConfig> {
 
     Ok(MergedConfig {
         input,
+        base_dir,
         output,
         name,
         max_width,

@@ -811,6 +811,7 @@ fn pack_atlases(config: &AppConfig, cancel_token: Arc<AtomicBool>) -> Result<Pac
         resize_width,
         resize_scale,
         Some(&cancel_token),
+        None,
     )
     .map_err(|e| e.to_string())?;
 

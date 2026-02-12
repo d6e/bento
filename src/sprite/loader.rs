@@ -19,6 +19,11 @@ struct ImagePath {
 }
 
 /// Load sprites from input paths (files or directories)
+///
+/// When `base_dir` is provided, individual file inputs will have their sprite
+/// names computed as paths relative to that directory. This preserves subdirectory
+/// structure in output metadata (e.g., "ironclad/bash.png" instead of "bash.png").
+/// Config-file loading uses this to pass the config directory as the base.
 pub fn load_sprites(
     inputs: &[impl AsRef<Path>],
     trim: bool,
@@ -26,8 +31,9 @@ pub fn load_sprites(
     resize_width: Option<u32>,
     resize_scale: Option<f32>,
     cancel_token: Option<&Arc<AtomicBool>>,
+    base_dir: Option<&Path>,
 ) -> Result<Vec<SourceSprite>> {
-    let image_paths = collect_image_paths(inputs)?;
+    let image_paths = collect_image_paths(inputs, base_dir)?;
 
     if image_paths.is_empty() {
         return Err(BentoError::NoImages.into());
@@ -66,7 +72,10 @@ pub fn load_sprites(
     Ok(sprites)
 }
 
-fn collect_image_paths(inputs: &[impl AsRef<Path>]) -> Result<Vec<ImagePath>> {
+fn collect_image_paths(
+    inputs: &[impl AsRef<Path>],
+    base_dir: Option<&Path>,
+) -> Result<Vec<ImagePath>> {
     let mut paths = Vec::new();
 
     for input in inputs {
@@ -79,7 +88,7 @@ fn collect_image_paths(inputs: &[impl AsRef<Path>]) -> Result<Vec<ImagePath>> {
             if is_supported_image(path) {
                 paths.push(ImagePath {
                     path: path.to_path_buf(),
-                    base: None,
+                    base: base_dir.map(Path::to_path_buf),
                 });
             }
         } else if path.is_dir() {
