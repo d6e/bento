@@ -5,6 +5,7 @@ use anyhow::Result;
 
 use crate::atlas::Atlas;
 use crate::error::BentoError;
+use crate::output::atlas_png_filename;
 use crate::sprite::PackedSprite;
 
 /// Generate Godot .tres AtlasTexture files
@@ -14,8 +15,9 @@ pub fn write_godot_resources(
     base_name: &str,
     godot_res_path: Option<&str>,
 ) -> Result<()> {
+    let total = atlases.len();
     for atlas in atlases {
-        let atlas_filename = format!("{}_{}.png", base_name, atlas.index);
+        let atlas_filename = atlas_png_filename(base_name, atlas.index, total);
         let res_path = godot_res_path
             .map(|p| format!("{}/{}", p.trim_end_matches('/'), atlas_filename))
             .unwrap_or_else(|| format!("res://{}", atlas_filename));

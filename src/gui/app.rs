@@ -18,7 +18,7 @@ use super::{is_supported_image, panels};
 use crate::atlas::{Atlas, AtlasBuilder};
 use crate::cli::{CompressionLevel, PackMode, PackingHeuristic};
 use crate::config::{BentoConfig, LoadedConfig, save_config};
-use crate::output::{save_atlas_image, write_godot_resources, write_json, write_tpsheet};
+use crate::output::{atlas_png_filename, save_atlas_image, write_godot_resources, write_json, write_tpsheet};
 use crate::sprite::load_sprites;
 
 /// Debounce delay for auto-repack (milliseconds)
@@ -852,10 +852,11 @@ fn export_atlases(atlases: &[Atlas], config: &AppConfig) -> Result<(), String> {
         .map_err(|e| format!("Failed to create output directory: {}", e))?;
 
     // Save PNG images for each atlas
+    let total = atlases.len();
     for atlas in atlases {
         let png_path = config
             .output_dir
-            .join(format!("{}_{}.png", config.name, atlas.index));
+            .join(atlas_png_filename(&config.name, atlas.index, total));
         save_atlas_image(atlas, &png_path, config.opaque, config.compress)
             .map_err(|e| e.to_string())?;
     }

@@ -6,6 +6,7 @@ use serde::Serialize;
 
 use crate::atlas::Atlas;
 use crate::error::BentoError;
+use crate::output::atlas_png_filename;
 use crate::sprite::PackedSprite;
 
 #[derive(Serialize)]
@@ -58,10 +59,11 @@ struct TpMeta {
 
 /// Write TexturePacker .tpsheet metadata file
 pub fn write_tpsheet(atlases: &[Atlas], output_dir: &Path, base_name: &str) -> Result<()> {
+    let total = atlases.len();
     let textures: Vec<_> = atlases
         .iter()
         .map(|atlas| {
-            let image = format!("{}_{}.png", base_name, atlas.index);
+            let image = atlas_png_filename(base_name, atlas.index, total);
             let sprites = atlas.sprites.iter().map(sprite_to_tpsprite).collect();
 
             TpTexture {

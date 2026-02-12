@@ -8,7 +8,7 @@ use log::info;
 use bento::atlas::AtlasBuilder;
 use bento::cli::{CliArgs, Command, CommonArgs, CompressionLevel, PackMode, PackingHeuristic};
 use bento::config::{CompressConfig, LoadedConfig, ResizeConfig};
-use bento::output::{save_atlas_image, write_godot_resources, write_json, write_tpsheet};
+use bento::output::{atlas_png_filename, save_atlas_image, write_godot_resources, write_json, write_tpsheet};
 use bento::sprite::load_sprites;
 
 #[allow(clippy::print_stderr)]
@@ -86,10 +86,11 @@ fn run() -> Result<()> {
         .build(sprites)?;
 
     // Save atlas images
+    let total = atlases.len();
     for atlas in &atlases {
         let path = merged
             .output
-            .join(format!("{}_{}.png", merged.name, atlas.index));
+            .join(atlas_png_filename(&merged.name, atlas.index, total));
         save_atlas_image(atlas, &path, merged.opaque, merged.compress)?;
         info!("Saved {}", path.display());
     }
