@@ -323,7 +323,7 @@ fn merge_config_with_args(args: &CommonArgs) -> Result<MergedConfig> {
             CompressConfig::Max(_) => CompressionLevel::Max,
         })
     } else {
-        None
+        Some(CompressionLevel::Level(2))
     };
 
     Ok(MergedConfig {
