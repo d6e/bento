@@ -16,7 +16,7 @@ use super::state::{
 use super::thumbnail::spawn_thumbnail_loader;
 use super::{is_supported_image, panels};
 use crate::atlas::{Atlas, AtlasBuilder};
-use crate::cli::{CompressionLevel, PackMode, PackingHeuristic};
+use crate::cli::{CompressionLevel, PackMode, PackingHeuristic, ResizeFilter};
 use crate::config::{BentoConfig, LoadedConfig, save_config};
 use crate::output::{atlas_png_filename, save_atlas_image, write_godot_resources, write_json, write_tpsheet};
 use crate::sprite::load_sprites;
@@ -133,6 +133,15 @@ impl BentoApp {
             None => ResizeMode::None,
         };
 
+        // Resize filter
+        self.state.config.resize_filter = match cfg.resize_filter.as_str() {
+            "nearest" => ResizeFilter::Nearest,
+            "triangle" => ResizeFilter::Triangle,
+            "catmull-rom" | "bicubic" => ResizeFilter::CatmullRom,
+            "gaussian" => ResizeFilter::Gaussian,
+            _ => ResizeFilter::Lanczos3,
+        };
+
         // Heuristic
         self.state.config.heuristic = match cfg.heuristic.as_str() {
             "best-short-side-fit" => PackingHeuristic::BestShortSideFit,
@@ -231,6 +240,13 @@ impl BentoApp {
                 ResizeMode::None => None,
                 ResizeMode::Width(w) => Some(CfgResize::Width { width: w }),
                 ResizeMode::Scale(s) => Some(CfgResize::Scale { scale: s }),
+            },
+            resize_filter: match self.state.config.resize_filter {
+                ResizeFilter::Nearest => "nearest".to_string(),
+                ResizeFilter::Triangle => "triangle".to_string(),
+                ResizeFilter::CatmullRom => "catmull-rom".to_string(),
+                ResizeFilter::Gaussian => "gaussian".to_string(),
+                ResizeFilter::Lanczos3 => "lanczos3".to_string(),
             },
             heuristic: match self.state.config.heuristic {
                 PackingHeuristic::BestShortSideFit => "best-short-side-fit".to_string(),
@@ -810,6 +826,7 @@ fn pack_atlases(config: &AppConfig, cancel_token: Arc<AtomicBool>) -> Result<Pac
         config.trim_margin,
         resize_width,
         resize_scale,
+        config.resize_filter,
         Some(&cancel_token),
         None,
     )

@@ -88,6 +88,10 @@ pub struct CommonArgs {
     #[arg(long, value_name = "FACTOR", conflicts_with = "resize_width")]
     pub resize_scale: Option<f32>,
 
+    /// Resize filter algorithm [default: lanczos3]
+    #[arg(long, value_enum)]
+    pub resize_filter: Option<ResizeFilter>,
+
     /// Pack mode: single (use one ordering) or best (try multiple orderings) [default: single]
     #[arg(long, value_enum)]
     pub pack_mode: Option<PackMode>,
@@ -104,6 +108,39 @@ pub enum PackMode {
     Single,
     /// Try multiple sprite orderings and pick the best result
     Best,
+}
+
+/// Resize filter algorithm
+#[derive(Debug, Clone, Copy, ValueEnum, Default, PartialEq, Eq, Hash)]
+pub enum ResizeFilter {
+    /// Nearest neighbor (best for pixel art)
+    #[value(name = "nearest")]
+    Nearest,
+    /// Bilinear interpolation
+    #[value(name = "triangle")]
+    Triangle,
+    /// Cubic interpolation (bicubic)
+    #[value(name = "catmull-rom", alias = "bicubic")]
+    CatmullRom,
+    /// Gaussian filter
+    #[value(name = "gaussian")]
+    Gaussian,
+    /// Lanczos with window 3 (highest quality)
+    #[default]
+    #[value(name = "lanczos3")]
+    Lanczos3,
+}
+
+impl ResizeFilter {
+    pub fn to_image_filter(self) -> image::imageops::FilterType {
+        match self {
+            ResizeFilter::Nearest => image::imageops::FilterType::Nearest,
+            ResizeFilter::Triangle => image::imageops::FilterType::Triangle,
+            ResizeFilter::CatmullRom => image::imageops::FilterType::CatmullRom,
+            ResizeFilter::Gaussian => image::imageops::FilterType::Gaussian,
+            ResizeFilter::Lanczos3 => image::imageops::FilterType::Lanczos3,
+        }
+    }
 }
 
 /// PNG compression level (0-6 or max)

@@ -8,6 +8,7 @@ use log::info;
 use rayon::prelude::*;
 
 use super::{SourceSprite, TrimInfo, resize_by_scale, resize_to_width, trim_sprite};
+use crate::cli::ResizeFilter;
 use crate::error::BentoError;
 
 const SUPPORTED_EXTENSIONS: &[&str] = &["png", "jpg", "jpeg", "gif", "bmp", "webp"];
@@ -30,6 +31,7 @@ pub fn load_sprites(
     trim_margin: u32,
     resize_width: Option<u32>,
     resize_scale: Option<f32>,
+    resize_filter: ResizeFilter,
     cancel_token: Option<&Arc<AtomicBool>>,
     base_dir: Option<&Path>,
 ) -> Result<Vec<SourceSprite>> {
@@ -57,6 +59,7 @@ pub fn load_sprites(
                 trim_margin,
                 resize_width,
                 resize_scale,
+                resize_filter,
             )
         })
         .collect();
@@ -131,6 +134,7 @@ fn load_single_sprite(
     trim_margin: u32,
     resize_width: Option<u32>,
     resize_scale: Option<f32>,
+    resize_filter: ResizeFilter,
 ) -> Result<SourceSprite> {
     let img = ImageReader::open(path)
         .map_err(|e| BentoError::ImageLoad {
@@ -145,9 +149,10 @@ fn load_single_sprite(
         .into_rgba8();
 
     // Resize if requested (before trimming)
+    let filter = resize_filter.to_image_filter();
     let img = match (resize_width, resize_scale) {
-        (Some(w), None) => resize_to_width(img, w),
-        (None, Some(s)) => resize_by_scale(img, s),
+        (Some(w), None) => resize_to_width(img, w, filter),
+        (None, Some(s)) => resize_by_scale(img, s, filter),
         _ => img,
     };
 

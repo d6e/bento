@@ -1,6 +1,6 @@
 use eframe::egui;
 
-use crate::cli::{CompressionLevel, PackMode, PackingHeuristic};
+use crate::cli::{CompressionLevel, PackMode, PackingHeuristic, ResizeFilter};
 use crate::gui::state::{AppState, ResizeMode};
 
 /// Settings panel with all packing/export options
@@ -122,6 +122,42 @@ pub fn settings_panel(ui: &mut egui::Ui, state: &mut AppState) {
                         );
                     });
                 }
+            }
+
+            // Show filter selection when resize is active
+            if !matches!(state.config.resize_mode, ResizeMode::None) {
+                ui.horizontal(|ui| {
+                    ui.label("Filter:");
+                    egui::ComboBox::from_id_salt("resize_filter")
+                        .selected_text(resize_filter_name(state.config.resize_filter))
+                        .show_ui(ui, |ui| {
+                            ui.selectable_value(
+                                &mut state.config.resize_filter,
+                                ResizeFilter::Nearest,
+                                "Nearest",
+                            );
+                            ui.selectable_value(
+                                &mut state.config.resize_filter,
+                                ResizeFilter::Triangle,
+                                "Bilinear (Triangle)",
+                            );
+                            ui.selectable_value(
+                                &mut state.config.resize_filter,
+                                ResizeFilter::CatmullRom,
+                                "Bicubic (Catmull-Rom)",
+                            );
+                            ui.selectable_value(
+                                &mut state.config.resize_filter,
+                                ResizeFilter::Gaussian,
+                                "Gaussian",
+                            );
+                            ui.selectable_value(
+                                &mut state.config.resize_filter,
+                                ResizeFilter::Lanczos3,
+                                "Lanczos3",
+                            );
+                        });
+                });
             }
         });
 
@@ -259,5 +295,15 @@ fn pack_mode_name(m: PackMode) -> &'static str {
     match m {
         PackMode::Single => "Single",
         PackMode::Best => "Best",
+    }
+}
+
+fn resize_filter_name(f: ResizeFilter) -> &'static str {
+    match f {
+        ResizeFilter::Nearest => "Nearest",
+        ResizeFilter::Triangle => "Bilinear (Triangle)",
+        ResizeFilter::CatmullRom => "Bicubic (Catmull-Rom)",
+        ResizeFilter::Gaussian => "Gaussian",
+        ResizeFilter::Lanczos3 => "Lanczos3",
     }
 }

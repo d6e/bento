@@ -8,7 +8,7 @@ use std::sync::mpsc;
 use std::time::{Duration, Instant};
 
 use crate::atlas::Atlas;
-use crate::cli::{CompressionLevel, PackMode, PackingHeuristic};
+use crate::cli::{CompressionLevel, PackMode, PackingHeuristic, ResizeFilter};
 use crate::gui::dialogs::PendingAction;
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -140,6 +140,7 @@ pub struct AppConfig {
     pub trim_margin: u32,
     pub extrude: u32,
     pub resize_mode: ResizeMode,
+    pub resize_filter: ResizeFilter,
     pub heuristic: PackingHeuristic,
     pub pack_mode: PackMode,
 
@@ -164,6 +165,7 @@ impl Default for AppConfig {
             trim_margin: 0,
             extrude: 0,
             resize_mode: ResizeMode::default(),
+            resize_filter: ResizeFilter::Lanczos3,
             heuristic: PackingHeuristic::Best,
             pack_mode: PackMode::Best,
 
@@ -201,6 +203,7 @@ impl AppConfig {
                 s.to_bits().hash(&mut hasher);
             }
         }
+        self.resize_filter.hash(&mut hasher);
         std::mem::discriminant(&self.heuristic).hash(&mut hasher);
         std::mem::discriminant(&self.pack_mode).hash(&mut hasher);
         hasher.finish()
@@ -250,6 +253,7 @@ impl AppConfig {
                 s.to_bits().hash(&mut hasher);
             }
         }
+        self.resize_filter.hash(&mut hasher);
         std::mem::discriminant(&self.heuristic).hash(&mut hasher);
         std::mem::discriminant(&self.pack_mode).hash(&mut hasher);
         self.opaque.hash(&mut hasher);

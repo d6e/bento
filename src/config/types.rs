@@ -52,6 +52,8 @@ pub struct BentoConfig {
     pub extrude: u32,
     /// Resize configuration (optional)
     pub resize: Option<ResizeConfig>,
+    /// Resize filter algorithm (nearest, triangle, catmull-rom, gaussian, lanczos3)
+    pub resize_filter: String,
     /// Packing heuristic to use
     pub heuristic: String,
     /// Pack mode: "single" or "best"
@@ -78,6 +80,7 @@ impl Default for BentoConfig {
             trim_margin: 0,
             extrude: 0,
             resize: None,
+            resize_filter: "lanczos3".to_string(),
             heuristic: "best-short-side-fit".to_string(),
             pack_mode: "single".to_string(),
             compress: None,

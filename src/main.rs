@@ -6,7 +6,9 @@ use clap::Parser;
 use log::info;
 
 use bento::atlas::AtlasBuilder;
-use bento::cli::{CliArgs, Command, CommonArgs, CompressionLevel, PackMode, PackingHeuristic};
+use bento::cli::{
+    CliArgs, Command, CommonArgs, CompressionLevel, PackMode, PackingHeuristic, ResizeFilter,
+};
 use bento::config::{CompressConfig, LoadedConfig, ResizeConfig};
 use bento::output::{atlas_png_filename, save_atlas_image, write_godot_resources, write_json, write_tpsheet};
 use bento::sprite::load_sprites;
@@ -71,6 +73,7 @@ fn run() -> Result<()> {
         merged.trim_margin,
         merged.resize_width,
         merged.resize_scale,
+        merged.resize_filter,
         None, // No cancellation for CLI
         merged.base_dir.as_deref(),
     )?;
@@ -140,6 +143,7 @@ struct MergedConfig {
     verbose: bool,
     resize_width: Option<u32>,
     resize_scale: Option<f32>,
+    resize_filter: ResizeFilter,
     pack_mode: PackMode,
     compress: Option<CompressionLevel>,
 }
@@ -295,6 +299,21 @@ fn merge_config_with_args(args: &CommonArgs) -> Result<MergedConfig> {
         (None, None)
     };
 
+    // Resize filter: CLI > config > default
+    let resize_filter = if let Some(f) = args.resize_filter {
+        f
+    } else if let Some(ref lc) = loaded_config {
+        parse_resize_filter(&lc.config.resize_filter).ok_or_else(|| {
+            anyhow::anyhow!(
+                "unknown resize_filter '{}' in config file. Valid values: nearest, \
+                 triangle, catmull-rom (or bicubic), gaussian, lanczos3",
+                lc.config.resize_filter
+            )
+        })?
+    } else {
+        ResizeFilter::Lanczos3
+    };
+
     // Compress: CLI option overrides config
     let compress = if args.compress.is_some() {
         args.compress
@@ -324,6 +343,7 @@ fn merge_config_with_args(args: &CommonArgs) -> Result<MergedConfig> {
         verbose,
         resize_width,
         resize_scale,
+        resize_filter,
         pack_mode,
         compress,
     })
@@ -345,6 +365,17 @@ fn parse_pack_mode(s: &str) -> Option<PackMode> {
     match s {
         "single" => Some(PackMode::Single),
         "best" => Some(PackMode::Best),
+        _ => None,
+    }
+}
+
+fn parse_resize_filter(s: &str) -> Option<ResizeFilter> {
+    match s {
+        "nearest" => Some(ResizeFilter::Nearest),
+        "triangle" => Some(ResizeFilter::Triangle),
+        "catmull-rom" | "bicubic" => Some(ResizeFilter::CatmullRom),
+        "gaussian" => Some(ResizeFilter::Gaussian),
+        "lanczos3" => Some(ResizeFilter::Lanczos3),
         _ => None,
     }
 }

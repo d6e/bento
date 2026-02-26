@@ -1,7 +1,7 @@
 use image::{RgbaImage, imageops::FilterType};
 
 /// Resize an image to a target width, preserving aspect ratio
-pub fn resize_to_width(img: RgbaImage, target_width: u32) -> RgbaImage {
+pub fn resize_to_width(img: RgbaImage, target_width: u32, filter: FilterType) -> RgbaImage {
     let (w, h) = img.dimensions();
     let scale = target_width as f32 / w as f32;
     #[expect(
@@ -10,11 +10,11 @@ pub fn resize_to_width(img: RgbaImage, target_width: u32) -> RgbaImage {
         reason = "scale is positive, result fits in u32"
     )]
     let new_height = (h as f32 * scale).round() as u32;
-    image::imageops::resize(&img, target_width, new_height.max(1), FilterType::Lanczos3)
+    image::imageops::resize(&img, target_width, new_height.max(1), filter)
 }
 
 /// Resize an image by a scale factor
-pub fn resize_by_scale(img: RgbaImage, scale: f32) -> RgbaImage {
+pub fn resize_by_scale(img: RgbaImage, scale: f32, filter: FilterType) -> RgbaImage {
     let (w, h) = img.dimensions();
     #[expect(
         clippy::cast_possible_truncation,
@@ -32,7 +32,7 @@ pub fn resize_by_scale(img: RgbaImage, scale: f32) -> RgbaImage {
         &img,
         new_width.max(1),
         new_height.max(1),
-        FilterType::Lanczos3,
+        filter,
     )
 }
 
@@ -48,7 +48,7 @@ mod tests {
             *pixel = Rgba([255, 0, 0, 255]);
         }
 
-        let resized = resize_to_width(img, 100);
+        let resized = resize_to_width(img, 100, FilterType::Lanczos3);
 
         assert_eq!(resized.width(), 100);
         assert_eq!(resized.height(), 50); // 100 * (100/200) = 50
@@ -61,7 +61,7 @@ mod tests {
             *pixel = Rgba([255, 0, 0, 255]);
         }
 
-        let resized = resize_to_width(img, 50);
+        let resized = resize_to_width(img, 50, FilterType::Lanczos3);
 
         assert_eq!(resized.width(), 50);
         assert_eq!(resized.height(), 200); // 400 * (50/100) = 200
@@ -74,7 +74,7 @@ mod tests {
             *pixel = Rgba([255, 0, 0, 255]);
         }
 
-        let resized = resize_by_scale(img, 0.5);
+        let resized = resize_by_scale(img, 0.5, FilterType::Lanczos3);
 
         assert_eq!(resized.width(), 50);
         assert_eq!(resized.height(), 40);
@@ -87,7 +87,7 @@ mod tests {
             *pixel = Rgba([255, 0, 0, 255]);
         }
 
-        let resized = resize_by_scale(img, 2.0);
+        let resized = resize_by_scale(img, 2.0, FilterType::Lanczos3);
 
         assert_eq!(resized.width(), 100);
         assert_eq!(resized.height(), 60);
@@ -101,9 +101,22 @@ mod tests {
         }
 
         // Very small scale that would round to 0
-        let resized = resize_by_scale(img, 0.001);
+        let resized = resize_by_scale(img, 0.001, FilterType::Lanczos3);
 
         assert!(resized.width() >= 1);
         assert!(resized.height() >= 1);
+    }
+
+    #[test]
+    fn test_resize_with_nearest_filter() {
+        let mut img = RgbaImage::new(100, 100);
+        for pixel in img.pixels_mut() {
+            *pixel = Rgba([255, 0, 0, 255]);
+        }
+
+        let resized = resize_by_scale(img, 0.5, FilterType::Nearest);
+
+        assert_eq!(resized.width(), 50);
+        assert_eq!(resized.height(), 50);
     }
 }
