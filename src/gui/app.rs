@@ -829,6 +829,7 @@ fn pack_atlases(config: &AppConfig, cancel_token: Arc<AtomicBool>) -> Result<Pac
         config.resize_filter,
         Some(&cancel_token),
         None,
+        false,
     )
     .map_err(|e| e.to_string())?;
 

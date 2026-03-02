@@ -76,6 +76,7 @@ fn run() -> Result<()> {
         merged.resize_filter,
         None, // No cancellation for CLI
         merged.base_dir.as_deref(),
+        merged.filename_only,
     )?;
     info!("Loaded {} sprites", sprites.len());
 
@@ -146,7 +147,6 @@ struct MergedConfig {
     resize_filter: ResizeFilter,
     pack_mode: PackMode,
     compress: Option<CompressionLevel>,
-    #[allow(dead_code)]
     filename_only: bool,
 }
 
@@ -338,7 +338,7 @@ fn merge_config_with_args(args: &CommonArgs) -> Result<MergedConfig> {
 
     Ok(MergedConfig {
         input,
-        base_dir: if filename_only { None } else { base_dir },
+        base_dir,
         output,
         name,
         max_width,
