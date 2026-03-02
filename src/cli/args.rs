@@ -96,6 +96,10 @@ pub struct CommonArgs {
     #[arg(long, value_enum)]
     pub pack_mode: Option<PackMode>,
 
+    /// Use only the filename (no directory prefix) in sprite names
+    #[arg(long)]
+    pub filename_only: bool,
+
     /// Compress PNG output (0-6 or 'max'). Default level is 2 if flag is present without value.
     #[arg(long, value_name = "LEVEL", default_missing_value = "2", num_args = 0..=1)]
     pub compress: Option<CompressionLevel>,

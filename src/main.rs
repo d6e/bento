@@ -146,6 +146,8 @@ struct MergedConfig {
     resize_filter: ResizeFilter,
     pack_mode: PackMode,
     compress: Option<CompressionLevel>,
+    #[allow(dead_code)]
+    filename_only: bool,
 }
 
 /// Merge config file values with CLI arguments.
@@ -256,6 +258,14 @@ fn merge_config_with_args(args: &CommonArgs) -> Result<MergedConfig> {
     // Verbose is CLI-only
     let verbose = args.verbose;
 
+    let filename_only = if args.filename_only {
+        true
+    } else if let Some(ref lc) = loaded_config {
+        lc.config.filename_only
+    } else {
+        false
+    };
+
     // Heuristic: CLI > config > default
     let heuristic = if let Some(h) = args.heuristic {
         h
@@ -328,7 +338,7 @@ fn merge_config_with_args(args: &CommonArgs) -> Result<MergedConfig> {
 
     Ok(MergedConfig {
         input,
-        base_dir,
+        base_dir: if filename_only { None } else { base_dir },
         output,
         name,
         max_width,
@@ -346,6 +356,7 @@ fn merge_config_with_args(args: &CommonArgs) -> Result<MergedConfig> {
         resize_filter,
         pack_mode,
         compress,
+        filename_only,
     })
 }
 

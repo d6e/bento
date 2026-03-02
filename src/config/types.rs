@@ -62,6 +62,8 @@ pub struct BentoConfig {
     pub compress: Option<CompressConfig>,
     /// Output RGB instead of RGBA (opaque atlas)
     pub opaque: bool,
+    /// Use only the filename (no directory prefix) in sprite names
+    pub filename_only: bool,
 }
 
 impl Default for BentoConfig {
@@ -85,6 +87,7 @@ impl Default for BentoConfig {
             pack_mode: "single".to_string(),
             compress: None,
             opaque: false,
+            filename_only: false,
         }
     }
 }
