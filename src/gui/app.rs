@@ -265,6 +265,7 @@ impl BentoApp {
                 CompressionLevel::Max => CompressConfig::Max("max".to_string()),
             }),
             opaque: self.state.config.opaque,
+            filename_only: false,
         }
     }
 
