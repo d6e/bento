@@ -177,10 +177,10 @@ mod tests {
             trimmed_height: 4,
         };
 
-        let (left, top, right, bottom) = info.godot_margin();
-        assert_eq!(left, 2);
-        assert_eq!(top, 3);
-        assert_eq!(right, 4); // 10 - 4 - 2 = 4
-        assert_eq!(bottom, 3); // 10 - 4 - 3 = 3
+        let (pos_x, pos_y, size_w, size_h) = info.godot_margin();
+        assert_eq!(pos_x, 2);
+        assert_eq!(pos_y, 3);
+        assert_eq!(size_w, 6); // 10 - 4 = 6
+        assert_eq!(size_h, 6); // 10 - 4 = 6
     }
 }

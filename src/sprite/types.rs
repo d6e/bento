@@ -37,11 +37,12 @@ impl TrimInfo {
         self.trimmed_width != self.source_width || self.trimmed_height != self.source_height
     }
 
-    /// Calculate Godot margin values (left, top, right, bottom)
+    /// Calculate Godot AtlasTexture margin as Rect2(position.x, position.y, size.w, size.h)
+    /// where position = trim offset and size = source_size - trimmed_size
     pub fn godot_margin(&self) -> (i32, i32, i32, i32) {
-        let right = self.source_width as i32 - self.trimmed_width as i32 - self.offset_x;
-        let bottom = self.source_height as i32 - self.trimmed_height as i32 - self.offset_y;
-        (self.offset_x, self.offset_y, right, bottom)
+        let w = self.source_width as i32 - self.trimmed_width as i32;
+        let h = self.source_height as i32 - self.trimmed_height as i32;
+        (self.offset_x, self.offset_y, w, h)
     }
 }
 

@@ -110,6 +110,6 @@ mod tests {
         let tres = generate_tres(&sprite, "res://atlas_0.png");
 
         assert!(tres.contains("region = Rect2(10, 20, 28, 28)"));
-        assert!(tres.contains("margin = Rect2(2, 2, 2, 2)"));
+        assert!(tres.contains("margin = Rect2(2, 2, 4, 4)"));
     }
 }
