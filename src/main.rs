@@ -86,6 +86,7 @@ fn run() -> Result<()> {
         .heuristic(merged.heuristic)
         .power_of_two(merged.pot)
         .extrude(merged.extrude)
+        .block_align(merged.block_align)
         .pack_mode(merged.pack_mode)
         .build(sprites)?;
 
@@ -141,6 +142,7 @@ struct MergedConfig {
     opaque: bool,
     pot: bool,
     extrude: u32,
+    block_align: u32,
     verbose: bool,
     resize_width: Option<u32>,
     resize_scale: Option<f32>,
@@ -227,6 +229,13 @@ fn merge_config_with_args(args: &CommonArgs) -> Result<MergedConfig> {
         loaded_config
             .as_ref()
             .map(|lc| lc.config.extrude)
+            .unwrap_or(0)
+    });
+
+    let block_align = args.block_align.unwrap_or_else(|| {
+        loaded_config
+            .as_ref()
+            .map(|lc| lc.config.block_align)
             .unwrap_or(0)
     });
 
@@ -350,6 +359,7 @@ fn merge_config_with_args(args: &CommonArgs) -> Result<MergedConfig> {
         opaque,
         pot,
         extrude,
+        block_align,
         verbose,
         resize_width,
         resize_scale,

@@ -76,6 +76,10 @@ pub struct CommonArgs {
     #[arg(long)]
     pub extrude: Option<u32>,
 
+    /// Align sprite regions to N-pixel boundaries (e.g. 4 for BPTC, 8 for ASTC 8x8) [default: 0]
+    #[arg(long)]
+    pub block_align: Option<u32>,
+
     /// Verbose output
     #[arg(short, long)]
     pub verbose: bool,

@@ -50,6 +50,8 @@ pub struct BentoConfig {
     pub trim_margin: u32,
     /// Extrude sprite edges by N pixels (helps with texture bleeding)
     pub extrude: u32,
+    /// Align sprite regions to N-pixel boundaries (e.g. 4 for BPTC/S3TC, 8 for ASTC 8x8)
+    pub block_align: u32,
     /// Resize configuration (optional)
     pub resize: Option<ResizeConfig>,
     /// Resize filter algorithm (nearest, triangle, catmull-rom, gaussian, lanczos3)
@@ -81,6 +83,7 @@ impl Default for BentoConfig {
             trim: true,
             trim_margin: 0,
             extrude: 0,
+            block_align: 0,
             resize: None,
             resize_filter: "lanczos3".to_string(),
             heuristic: "best-short-side-fit".to_string(),

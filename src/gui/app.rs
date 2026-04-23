@@ -125,6 +125,7 @@ impl BentoApp {
         self.state.config.trim = cfg.trim;
         self.state.config.trim_margin = cfg.trim_margin;
         self.state.config.extrude = cfg.extrude;
+        self.state.config.block_align = cfg.block_align;
 
         // Resize mode
         self.state.config.resize_mode = match &cfg.resize {
@@ -236,6 +237,7 @@ impl BentoApp {
             trim: self.state.config.trim,
             trim_margin: self.state.config.trim_margin,
             extrude: self.state.config.extrude,
+            block_align: self.state.config.block_align,
             resize: match self.state.config.resize_mode {
                 ResizeMode::None => None,
                 ResizeMode::Width(w) => Some(CfgResize::Width { width: w }),
@@ -840,6 +842,7 @@ fn pack_atlases(config: &AppConfig, cancel_token: Arc<AtomicBool>) -> Result<Pac
         .heuristic(config.heuristic)
         .power_of_two(config.pot)
         .extrude(config.extrude)
+        .block_align(config.block_align)
         .pack_mode(config.pack_mode)
         .cancel_token(cancel_token.clone())
         .build(sprites)

@@ -139,6 +139,7 @@ pub struct AppConfig {
     pub trim: bool,
     pub trim_margin: u32,
     pub extrude: u32,
+    pub block_align: u32,
     pub resize_mode: ResizeMode,
     pub resize_filter: ResizeFilter,
     pub heuristic: PackingHeuristic,
@@ -164,6 +165,7 @@ impl Default for AppConfig {
             trim: true,
             trim_margin: 0,
             extrude: 0,
+            block_align: 0,
             resize_mode: ResizeMode::default(),
             resize_filter: ResizeFilter::Lanczos3,
             heuristic: PackingHeuristic::Best,
@@ -191,6 +193,7 @@ impl AppConfig {
         self.trim.hash(&mut hasher);
         self.trim_margin.hash(&mut hasher);
         self.extrude.hash(&mut hasher);
+        self.block_align.hash(&mut hasher);
         // Hash resize_mode including inner values (f32 doesn't impl Hash, use bits)
         match self.resize_mode {
             ResizeMode::None => 0u8.hash(&mut hasher),
@@ -241,6 +244,7 @@ impl AppConfig {
         self.trim.hash(&mut hasher);
         self.trim_margin.hash(&mut hasher);
         self.extrude.hash(&mut hasher);
+        self.block_align.hash(&mut hasher);
         // Hash resize_mode
         match self.resize_mode {
             ResizeMode::None => 0u8.hash(&mut hasher),

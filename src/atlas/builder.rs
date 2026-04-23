@@ -60,6 +60,7 @@ pub struct AtlasBuilder {
     pub heuristic: PackingHeuristic,
     pub power_of_two: bool,
     pub extrude: u32,
+    pub block_align: u32,
     pub pack_mode: PackMode,
     cancel_token: Option<Arc<AtomicBool>>,
 }
@@ -118,6 +119,7 @@ impl AtlasBuilder {
             heuristic: PackingHeuristic::BestShortSideFit,
             power_of_two: false,
             extrude: 0,
+            block_align: 0,
             pack_mode: PackMode::Single,
             cancel_token: None,
         }
@@ -140,6 +142,11 @@ impl AtlasBuilder {
 
     pub fn extrude(mut self, extrude: u32) -> Self {
         self.extrude = extrude;
+        self
+    }
+
+    pub fn block_align(mut self, block_align: u32) -> Self {
+        self.block_align = block_align;
         self
     }
 
@@ -169,8 +176,8 @@ impl AtlasBuilder {
 
         // Validate all sprites can fit
         for sprite in &sprites {
-            let padded_w = sprite.width() + self.padding * 2 + self.extrude * 2;
-            let padded_h = sprite.height() + self.padding * 2 + self.extrude * 2;
+            let padded_w = self.padded_size(sprite.width());
+            let padded_h = self.padded_size(sprite.height());
 
             if padded_w > self.max_width || padded_h > self.max_height {
                 return Err(BentoError::SpriteTooLarge {
@@ -273,8 +280,8 @@ impl AtlasBuilder {
                 break;
             }
             let sprite = &sprites[i];
-            let padded_w = sprite.width() + self.padding * 2 + self.extrude * 2;
-            let padded_h = sprite.height() + self.padding * 2 + self.extrude * 2;
+            let padded_w = self.padded_size(sprite.width());
+            let padded_h = self.padded_size(sprite.height());
 
             if let Some(rect) = packer.insert(padded_w, padded_h, heuristic) {
                 let sprite_x = rect.x + self.padding + self.extrude;
@@ -303,8 +310,8 @@ impl AtlasBuilder {
         let sprite_area: u64 = placements
             .iter()
             .map(|p| {
-                let padded_w = p.width + self.padding * 2 + self.extrude * 2;
-                let padded_h = p.height + self.padding * 2 + self.extrude * 2;
+                let padded_w = self.padded_size(p.width);
+                let padded_h = self.padded_size(p.height);
                 u64::from(padded_w) * u64::from(padded_h)
             })
             .sum();
@@ -536,6 +543,16 @@ impl AtlasBuilder {
         Ok((atlas, unpacked))
     }
 
+    /// Compute the padded cell size for a sprite dimension, including block alignment.
+    fn padded_size(&self, sprite_dim: u32) -> u32 {
+        let raw = sprite_dim + self.padding * 2 + self.extrude * 2;
+        if self.block_align > 1 {
+            align_up(raw, self.block_align)
+        } else {
+            raw
+        }
+    }
+
     fn extrude_sprite(&self, atlas: &mut image::RgbaImage, sprite: &SourceSprite, x: u32, y: u32) {
         let img = &sprite.image;
         let (w, h) = img.dimensions();
@@ -587,6 +604,11 @@ impl AtlasBuilder {
             atlas.put_pixel(x + w - 1 + e, y + h - 1 + e, *pixel);
         }
     }
+}
+
+/// Round up to the next multiple of `align`.
+fn align_up(n: u32, align: u32) -> u32 {
+    ((n + align - 1) / align) * align
 }
 
 fn next_power_of_two(n: u32) -> u32 {
