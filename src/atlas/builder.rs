@@ -467,7 +467,7 @@ impl AtlasBuilder {
         ordering: SpriteOrdering,
         layout: PackingLayout,
     ) -> Result<(Atlas, Vec<SourceSprite>)> {
-        let (final_width, final_height) = if self.power_of_two {
+        let (mut final_width, mut final_height) = if self.power_of_two {
             (
                 next_power_of_two(layout.max_x),
                 next_power_of_two(layout.max_y),
@@ -475,6 +475,10 @@ impl AtlasBuilder {
         } else {
             (layout.max_x, layout.max_y)
         };
+        if self.block_align > 1 {
+            final_width = align_up(final_width, self.block_align);
+            final_height = align_up(final_height, self.block_align);
+        }
 
         let mut atlas = Atlas::new(index, final_width, final_height);
         atlas.occupancy = layout.occupancy;
@@ -606,8 +610,9 @@ impl AtlasBuilder {
     }
 }
 
-/// Round up to the next multiple of `align`.
+/// Round up to the next multiple of `align`. `align` must be >= 2.
 fn align_up(n: u32, align: u32) -> u32 {
+    debug_assert!(align >= 2, "align_up requires align >= 2, got {align}");
     ((n + align - 1) / align) * align
 }
 
