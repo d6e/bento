@@ -641,6 +641,100 @@ mod tests {
     use image::Rgba;
 
     #[test]
+    fn test_align_up() {
+        assert_eq!(align_up(0, 4), 0);
+        assert_eq!(align_up(1, 4), 4);
+        assert_eq!(align_up(3, 4), 4);
+        assert_eq!(align_up(4, 4), 4);
+        assert_eq!(align_up(5, 4), 8);
+        assert_eq!(align_up(85, 4), 88);
+        assert_eq!(align_up(8, 8), 8);
+        assert_eq!(align_up(9, 8), 16);
+    }
+
+    #[test]
+    fn test_block_align_sprite_positions() {
+        // With padding=2, extrude=2, block_align=4:
+        // padded cell = sprite + 2*2 + 2*2 = sprite + 8, rounded up to next multiple of 4.
+        // For a 20x20 sprite: padded = 28, already aligned.
+        // sprite_x = rect.x + 2 + 2 = rect.x + 4.
+        // Since padded is 28 (multiple of 4), rect.x is a multiple of 28's packing position.
+        // When rect.x = 0: sprite_x = 4, which is 4-aligned.
+        let sprites = vec![SourceSprite {
+            path: std::path::PathBuf::from("test.png"),
+            name: "test".to_string(),
+            image: image::RgbaImage::new(20, 20),
+            trim_info: TrimInfo::untrimmed(20, 20),
+        }];
+
+        let builder = AtlasBuilder::new(256, 256)
+            .padding(2)
+            .extrude(2)
+            .block_align(4);
+
+        let result = builder.build(sprites).unwrap();
+        let packed = &result[0].sprites[0];
+
+        assert_eq!(packed.x % 4, 0, "sprite x={} should be 4-aligned", packed.x);
+        assert_eq!(packed.y % 4, 0, "sprite y={} should be 4-aligned", packed.y);
+    }
+
+    #[test]
+    fn test_block_align_all_sprites_aligned() {
+        // Pack multiple sprites with different sizes and verify all are block-aligned.
+        let sizes = [(20, 20), (30, 25), (15, 40), (50, 10), (85, 85)];
+        let sprites: Vec<SourceSprite> = sizes
+            .iter()
+            .enumerate()
+            .map(|(i, (w, h))| SourceSprite {
+                path: std::path::PathBuf::from(format!("sprite_{}.png", i)),
+                name: format!("sprite_{}", i),
+                image: image::RgbaImage::new(*w, *h),
+                trim_info: TrimInfo::untrimmed(*w, *h),
+            })
+            .collect();
+
+        let builder = AtlasBuilder::new(512, 512)
+            .padding(2)
+            .extrude(2)
+            .block_align(4);
+
+        let result = builder.build(sprites).unwrap();
+        for packed in &result[0].sprites {
+            assert_eq!(
+                packed.x % 4, 0,
+                "sprite '{}' x={} should be 4-aligned",
+                packed.name, packed.x
+            );
+            assert_eq!(
+                packed.y % 4, 0,
+                "sprite '{}' y={} should be 4-aligned",
+                packed.name, packed.y
+            );
+        }
+    }
+
+    #[test]
+    fn test_block_align_disabled_by_default() {
+        // Without block_align, sprites may land on non-aligned positions.
+        let sprites = vec![SourceSprite {
+            path: std::path::PathBuf::from("test.png"),
+            name: "test".to_string(),
+            image: image::RgbaImage::new(20, 20),
+            trim_info: TrimInfo::untrimmed(20, 20),
+        }];
+
+        let builder = AtlasBuilder::new(256, 256).padding(1).extrude(0);
+
+        let result = builder.build(sprites).unwrap();
+        let packed = &result[0].sprites[0];
+        // With padding=1, extrude=0: sprite_x = rect.x + 1
+        // rect.x = 0, so sprite_x = 1, which is NOT 4-aligned
+        assert_eq!(packed.x, 1);
+        assert_eq!(packed.y, 1);
+    }
+
+    #[test]
     fn test_next_power_of_two() {
         assert_eq!(next_power_of_two(0), 1);
         assert_eq!(next_power_of_two(1), 1);
