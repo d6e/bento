@@ -10,7 +10,9 @@ use bento::cli::{
     CliArgs, Command, CommonArgs, CompressionLevel, PackMode, PackingHeuristic, ResizeFilter,
 };
 use bento::config::{CompressConfig, LoadedConfig, ResizeConfig};
-use bento::output::{atlas_png_filename, save_atlas_image, write_godot_resources, write_json, write_tpsheet};
+use bento::output::{
+    atlas_png_filename, save_atlas_image, write_godot_resources, write_json, write_tpsheet,
+};
 use bento::sprite::load_sprites;
 
 #[allow(clippy::print_stderr)]

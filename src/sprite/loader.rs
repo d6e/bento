@@ -261,23 +261,31 @@ mod tests {
         // With base_dir and filename_only=false, name preserves relative path
         let sprites = load_sprites(
             &[sub.join("bat.png")],
-            false, 0, None, None,
+            false,
+            0,
+            None,
+            None,
             ResizeFilter::Nearest,
             None,
             Some(dir.as_path()),
             false,
-        ).expect("load ok");
+        )
+        .expect("load ok");
         assert_eq!(sprites[0].name, "enemies/bat.png");
 
         // With filename_only=true, name is bare filename
         let sprites = load_sprites(
             &[sub.join("bat.png")],
-            false, 0, None, None,
+            false,
+            0,
+            None,
+            None,
             ResizeFilter::Nearest,
             None,
             Some(dir.as_path()),
             true,
-        ).expect("load ok");
+        )
+        .expect("load ok");
         assert_eq!(sprites[0].name, "bat.png");
 
         std::fs::remove_dir_all(&dir).ok();
@@ -293,23 +301,31 @@ mod tests {
         // Without filename_only, directory input preserves relative path
         let sprites = load_sprites(
             std::slice::from_ref(&dir),
-            false, 0, None, None,
+            false,
+            0,
+            None,
+            None,
             ResizeFilter::Nearest,
             None,
             None,
             false,
-        ).expect("load ok");
+        )
+        .expect("load ok");
         assert_eq!(sprites[0].name, "units/hero.png");
 
         // With filename_only, bare filename
         let sprites = load_sprites(
             std::slice::from_ref(&dir),
-            false, 0, None, None,
+            false,
+            0,
+            None,
+            None,
             ResizeFilter::Nearest,
             None,
             None,
             true,
-        ).expect("load ok");
+        )
+        .expect("load ok");
         assert_eq!(sprites[0].name, "hero.png");
 
         std::fs::remove_dir_all(&dir).ok();
@@ -328,7 +344,10 @@ mod tests {
         // filename_only causes both to be named "icon.png" -> error
         let result = load_sprites(
             &[a.join("icon.png"), b.join("icon.png")],
-            false, 0, None, None,
+            false,
+            0,
+            None,
+            None,
             ResizeFilter::Nearest,
             None,
             None,
@@ -336,8 +355,14 @@ mod tests {
         );
         let err = result.expect_err("should fail on duplicates");
         let msg = err.to_string();
-        assert!(msg.contains("icon.png"), "error should mention the duplicate name: {msg}");
-        assert!(msg.contains("Duplicate"), "error should mention 'Duplicate': {msg}");
+        assert!(
+            msg.contains("icon.png"),
+            "error should mention the duplicate name: {msg}"
+        );
+        assert!(
+            msg.contains("Duplicate"),
+            "error should mention 'Duplicate': {msg}"
+        );
 
         std::fs::remove_dir_all(&dir).ok();
     }
@@ -350,7 +375,10 @@ mod tests {
 
         let result = load_sprites(
             &[dir.join("alpha.png"), dir.join("beta.png")],
-            false, 0, None, None,
+            false,
+            0,
+            None,
+            None,
             ResizeFilter::Nearest,
             None,
             None,

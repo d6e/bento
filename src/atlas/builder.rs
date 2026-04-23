@@ -702,14 +702,18 @@ mod tests {
         let result = builder.build(sprites).unwrap();
         for packed in &result[0].sprites {
             assert_eq!(
-                packed.x % 4, 0,
+                packed.x % 4,
+                0,
                 "sprite '{}' x={} should be 4-aligned",
-                packed.name, packed.x
+                packed.name,
+                packed.x
             );
             assert_eq!(
-                packed.y % 4, 0,
+                packed.y % 4,
+                0,
                 "sprite '{}' y={} should be 4-aligned",
-                packed.name, packed.y
+                packed.name,
+                packed.y
             );
         }
     }

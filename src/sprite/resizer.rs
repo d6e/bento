@@ -28,12 +28,7 @@ pub fn resize_by_scale(img: RgbaImage, scale: f32, filter: FilterType) -> RgbaIm
         reason = "scale is positive, result fits in u32"
     )]
     let new_height = (h as f32 * scale).round() as u32;
-    image::imageops::resize(
-        &img,
-        new_width.max(1),
-        new_height.max(1),
-        filter,
-    )
+    image::imageops::resize(&img, new_width.max(1), new_height.max(1), filter)
 }
 
 #[cfg(test)]

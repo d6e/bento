@@ -18,7 +18,9 @@ use super::{is_supported_image, panels};
 use crate::atlas::{Atlas, AtlasBuilder};
 use crate::cli::{CompressionLevel, PackMode, PackingHeuristic, ResizeFilter};
 use crate::config::{BentoConfig, LoadedConfig, save_config};
-use crate::output::{atlas_png_filename, save_atlas_image, write_godot_resources, write_json, write_tpsheet};
+use crate::output::{
+    atlas_png_filename, save_atlas_image, write_godot_resources, write_json, write_tpsheet,
+};
 use crate::sprite::load_sprites;
 
 /// Debounce delay for auto-repack (milliseconds)
