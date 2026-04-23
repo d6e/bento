@@ -168,6 +168,7 @@ bento json sprites/*.png -o output/ --compress max    # maximum compression (slo
 | `--pack-mode` | `single` | Ordering mode: `single` or `best` |
 | `--pot` | off | Force power-of-two dimensions |
 | `--extrude` | `0` | Extrude sprite edges by N pixels |
+| `--block-align` | `0` | Align sprite regions to N-pixel boundaries (4 for BPTC, 8 for ASTC) |
 | `--opaque` | off | Output RGB instead of RGBA |
 | `--compress` | off | PNG compression level (0-6 or `max`) |
 | `-v, --verbose` | off | Verbose output |
@@ -245,6 +246,7 @@ You can save packing settings in a `.bento` JSON config file for reproducible bu
   "trim": true,
   "trim_margin": 0,
   "extrude": 1,
+  "block_align": 4,
   "heuristic": "best",
   "pack_mode": "best",
   "compress": 4

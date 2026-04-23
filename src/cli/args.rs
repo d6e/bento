@@ -76,7 +76,8 @@ pub struct CommonArgs {
     #[arg(long)]
     pub extrude: Option<u32>,
 
-    /// Align sprite regions to N-pixel boundaries (e.g. 4 for BPTC, 8 for ASTC 8x8) [default: 0]
+    /// Align sprite regions to N-pixel boundaries (4 for BPTC/S3TC, 8 for ASTC 8x8).
+    /// Prevents block-based VRAM compression from shifting sprite edges. [default: 0]
     #[arg(long)]
     pub block_align: Option<u32>,
 

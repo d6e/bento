@@ -50,7 +50,10 @@ pub struct BentoConfig {
     pub trim_margin: u32,
     /// Extrude sprite edges by N pixels (helps with texture bleeding)
     pub extrude: u32,
-    /// Align sprite regions to N-pixel boundaries (e.g. 4 for BPTC/S3TC, 8 for ASTC 8x8)
+    /// Align sprite regions to N-pixel boundaries (0 = disabled).
+    /// Use 4 for BPTC/S3TC or 8 for ASTC 8x8. Prevents block-based VRAM compression
+    /// from shifting sprite edges, which causes visible misalignment when overlaying
+    /// sprites from different atlases (e.g. icon + outline).
     pub block_align: u32,
     /// Resize configuration (optional)
     pub resize: Option<ResizeConfig>,

@@ -548,6 +548,10 @@ impl AtlasBuilder {
     }
 
     /// Compute the padded cell size for a sprite dimension, including block alignment.
+    /// When block_align is set, the cell is rounded up so that the sprite body
+    /// (at offset padding + extrude from the cell origin) lands on an aligned boundary.
+    /// This prevents VRAM block compression (BPTC, ASTC) from introducing edge artifacts
+    /// that shift the perceived position of sprites.
     fn padded_size(&self, sprite_dim: u32) -> u32 {
         let raw = sprite_dim + self.padding * 2 + self.extrude * 2;
         if self.block_align > 1 {
