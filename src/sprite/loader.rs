@@ -29,6 +29,7 @@ struct ImagePath {
 ///
 /// When `filename_only` is true, all sprites use bare filenames regardless of
 /// directory structure or `base_dir`.
+#[allow(clippy::too_many_arguments)]
 pub fn load_sprites(
     inputs: &[impl AsRef<Path>],
     trim: bool,
@@ -166,137 +167,6 @@ fn is_supported_image(path: &Path) -> bool {
         .unwrap_or(false)
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::cli::ResizeFilter;
-
-    /// Create a minimal valid 1x1 PNG file.
-    fn write_test_png(path: &Path) {
-        let img = image::RgbaImage::from_pixel(1, 1, image::Rgba([255, 0, 0, 255]));
-        img.save(path).expect("failed to write test png");
-    }
-
-    fn make_temp_dir(name: &str) -> std::path::PathBuf {
-        let dir = std::env::temp_dir().join(format!("bento_test_{}", name));
-        if dir.exists() {
-            std::fs::remove_dir_all(&dir).expect("failed to clean temp dir");
-        }
-        std::fs::create_dir_all(&dir).expect("failed to create temp dir");
-        dir
-    }
-
-    #[test]
-    fn test_filename_only_strips_directory_for_file_inputs() {
-        let dir = make_temp_dir("fo_file");
-        let sub = dir.join("enemies");
-        std::fs::create_dir_all(&sub).expect("mkdir");
-        write_test_png(&sub.join("bat.png"));
-
-        // With base_dir and filename_only=false, name preserves relative path
-        let sprites = load_sprites(
-            &[sub.join("bat.png")],
-            false, 0, None, None,
-            ResizeFilter::Nearest,
-            None,
-            Some(dir.as_path()),
-            false,
-        ).expect("load ok");
-        assert_eq!(sprites[0].name, "enemies/bat.png");
-
-        // With filename_only=true, name is bare filename
-        let sprites = load_sprites(
-            &[sub.join("bat.png")],
-            false, 0, None, None,
-            ResizeFilter::Nearest,
-            None,
-            Some(dir.as_path()),
-            true,
-        ).expect("load ok");
-        assert_eq!(sprites[0].name, "bat.png");
-
-        std::fs::remove_dir_all(&dir).ok();
-    }
-
-    #[test]
-    fn test_filename_only_strips_directory_for_dir_inputs() {
-        let dir = make_temp_dir("fo_dir");
-        let sub = dir.join("units");
-        std::fs::create_dir_all(&sub).expect("mkdir");
-        write_test_png(&sub.join("hero.png"));
-
-        // Without filename_only, directory input preserves relative path
-        let sprites = load_sprites(
-            &[dir.clone()],
-            false, 0, None, None,
-            ResizeFilter::Nearest,
-            None,
-            None,
-            false,
-        ).expect("load ok");
-        assert_eq!(sprites[0].name, "units/hero.png");
-
-        // With filename_only, bare filename
-        let sprites = load_sprites(
-            &[dir.clone()],
-            false, 0, None, None,
-            ResizeFilter::Nearest,
-            None,
-            None,
-            true,
-        ).expect("load ok");
-        assert_eq!(sprites[0].name, "hero.png");
-
-        std::fs::remove_dir_all(&dir).ok();
-    }
-
-    #[test]
-    fn test_duplicate_names_detected() {
-        let dir = make_temp_dir("fo_dup");
-        let a = dir.join("a");
-        let b = dir.join("b");
-        std::fs::create_dir_all(&a).expect("mkdir");
-        std::fs::create_dir_all(&b).expect("mkdir");
-        write_test_png(&a.join("icon.png"));
-        write_test_png(&b.join("icon.png"));
-
-        // filename_only causes both to be named "icon.png" -> error
-        let result = load_sprites(
-            &[a.join("icon.png"), b.join("icon.png")],
-            false, 0, None, None,
-            ResizeFilter::Nearest,
-            None,
-            None,
-            true,
-        );
-        let err = result.expect_err("should fail on duplicates");
-        let msg = err.to_string();
-        assert!(msg.contains("icon.png"), "error should mention the duplicate name: {msg}");
-        assert!(msg.contains("Duplicate"), "error should mention 'Duplicate': {msg}");
-
-        std::fs::remove_dir_all(&dir).ok();
-    }
-
-    #[test]
-    fn test_no_duplicate_error_when_names_unique() {
-        let dir = make_temp_dir("fo_uniq");
-        write_test_png(&dir.join("alpha.png"));
-        write_test_png(&dir.join("beta.png"));
-
-        let result = load_sprites(
-            &[dir.join("alpha.png"), dir.join("beta.png")],
-            false, 0, None, None,
-            ResizeFilter::Nearest,
-            None,
-            None,
-            false,
-        );
-        assert!(result.is_ok());
-
-        std::fs::remove_dir_all(&dir).ok();
-    }
-}
-
 fn load_single_sprite(
     path: &Path,
     base: Option<&Path>,
@@ -358,4 +228,136 @@ fn load_single_sprite(
         image,
         trim_info,
     })
+}
+
+#[cfg(test)]
+#[allow(clippy::expect_used)]
+mod tests {
+    use super::*;
+    use crate::cli::ResizeFilter;
+
+    /// Create a minimal valid 1x1 PNG file.
+    fn write_test_png(path: &Path) {
+        let img = image::RgbaImage::from_pixel(1, 1, image::Rgba([255, 0, 0, 255]));
+        img.save(path).expect("failed to write test png");
+    }
+
+    fn make_temp_dir(name: &str) -> std::path::PathBuf {
+        let dir = std::env::temp_dir().join(format!("bento_test_{}", name));
+        if dir.exists() {
+            std::fs::remove_dir_all(&dir).expect("failed to clean temp dir");
+        }
+        std::fs::create_dir_all(&dir).expect("failed to create temp dir");
+        dir
+    }
+
+    #[test]
+    fn test_filename_only_strips_directory_for_file_inputs() {
+        let dir = make_temp_dir("fo_file");
+        let sub = dir.join("enemies");
+        std::fs::create_dir_all(&sub).expect("mkdir");
+        write_test_png(&sub.join("bat.png"));
+
+        // With base_dir and filename_only=false, name preserves relative path
+        let sprites = load_sprites(
+            &[sub.join("bat.png")],
+            false, 0, None, None,
+            ResizeFilter::Nearest,
+            None,
+            Some(dir.as_path()),
+            false,
+        ).expect("load ok");
+        assert_eq!(sprites[0].name, "enemies/bat.png");
+
+        // With filename_only=true, name is bare filename
+        let sprites = load_sprites(
+            &[sub.join("bat.png")],
+            false, 0, None, None,
+            ResizeFilter::Nearest,
+            None,
+            Some(dir.as_path()),
+            true,
+        ).expect("load ok");
+        assert_eq!(sprites[0].name, "bat.png");
+
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn test_filename_only_strips_directory_for_dir_inputs() {
+        let dir = make_temp_dir("fo_dir");
+        let sub = dir.join("units");
+        std::fs::create_dir_all(&sub).expect("mkdir");
+        write_test_png(&sub.join("hero.png"));
+
+        // Without filename_only, directory input preserves relative path
+        let sprites = load_sprites(
+            std::slice::from_ref(&dir),
+            false, 0, None, None,
+            ResizeFilter::Nearest,
+            None,
+            None,
+            false,
+        ).expect("load ok");
+        assert_eq!(sprites[0].name, "units/hero.png");
+
+        // With filename_only, bare filename
+        let sprites = load_sprites(
+            std::slice::from_ref(&dir),
+            false, 0, None, None,
+            ResizeFilter::Nearest,
+            None,
+            None,
+            true,
+        ).expect("load ok");
+        assert_eq!(sprites[0].name, "hero.png");
+
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn test_duplicate_names_detected() {
+        let dir = make_temp_dir("fo_dup");
+        let a = dir.join("a");
+        let b = dir.join("b");
+        std::fs::create_dir_all(&a).expect("mkdir");
+        std::fs::create_dir_all(&b).expect("mkdir");
+        write_test_png(&a.join("icon.png"));
+        write_test_png(&b.join("icon.png"));
+
+        // filename_only causes both to be named "icon.png" -> error
+        let result = load_sprites(
+            &[a.join("icon.png"), b.join("icon.png")],
+            false, 0, None, None,
+            ResizeFilter::Nearest,
+            None,
+            None,
+            true,
+        );
+        let err = result.expect_err("should fail on duplicates");
+        let msg = err.to_string();
+        assert!(msg.contains("icon.png"), "error should mention the duplicate name: {msg}");
+        assert!(msg.contains("Duplicate"), "error should mention 'Duplicate': {msg}");
+
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn test_no_duplicate_error_when_names_unique() {
+        let dir = make_temp_dir("fo_uniq");
+        write_test_png(&dir.join("alpha.png"));
+        write_test_png(&dir.join("beta.png"));
+
+        let result = load_sprites(
+            &[dir.join("alpha.png"), dir.join("beta.png")],
+            false, 0, None, None,
+            ResizeFilter::Nearest,
+            None,
+            None,
+            false,
+        );
+        assert!(result.is_ok());
+
+        std::fs::remove_dir_all(&dir).ok();
+    }
 }

@@ -617,7 +617,7 @@ impl AtlasBuilder {
 /// Round up to the next multiple of `align`. `align` must be >= 2.
 fn align_up(n: u32, align: u32) -> u32 {
     debug_assert!(align >= 2, "align_up requires align >= 2, got {align}");
-    ((n + align - 1) / align) * align
+    n.div_ceil(align) * align
 }
 
 fn next_power_of_two(n: u32) -> u32 {
