@@ -223,26 +223,36 @@ impl AtlasBuilder {
             if self.heuristic == PackingHeuristic::Best {
                 self.find_best_heuristic(&sprites, index)?
             } else {
-                // Use specified heuristic with original ordering (or try orderings if pack_mode is Best)
+                // Use specified heuristic with original ordering (or try orderings/widths if pack_mode is Best)
                 let orderings: &[SpriteOrdering] = if self.pack_mode == PackMode::Best {
                     &ALL_ORDERINGS
                 } else {
                     &[SpriteOrdering::Original]
                 };
 
-                let mut best: Option<(SpriteOrdering, PackingLayout)> = None;
-                for &ordering in orderings {
-                    if self.is_cancelled() {
-                        break;
-                    }
-                    let order = self.sorted_indices(&sprites, ordering);
-                    let layout = self.try_pack(&sprites, &order, index, self.heuristic);
+                let width_candidates = self.width_candidates(&sprites);
 
-                    let dominated = best
-                        .as_ref()
-                        .is_some_and(|(_, b)| !layout.is_better_than(b));
-                    if !dominated {
-                        best = Some((ordering, layout));
+                let mut best: Option<(SpriteOrdering, PackingLayout)> = None;
+                for &max_width in &width_candidates {
+                    for &ordering in orderings {
+                        if self.is_cancelled() {
+                            break;
+                        }
+                        let order = self.sorted_indices(&sprites, ordering);
+                        let layout = self.try_pack_with_width(
+                            &sprites,
+                            &order,
+                            index,
+                            self.heuristic,
+                            max_width,
+                        );
+
+                        let dominated = best
+                            .as_ref()
+                            .is_some_and(|(_, b)| !layout.is_better_than(b));
+                        if !dominated {
+                            best = Some((ordering, layout));
+                        }
                     }
                 }
 
@@ -262,6 +272,7 @@ impl AtlasBuilder {
     }
 
     /// Try packing with a specific heuristic and ordering, return placement info without rendering
+    #[cfg(test)]
     fn try_pack(
         &self,
         sprites: &[SourceSprite],
@@ -269,7 +280,19 @@ impl AtlasBuilder {
         index: usize,
         heuristic: PackingHeuristic,
     ) -> PackingLayout {
-        let mut packer = MaxRectsPacker::new(self.max_width, self.max_height);
+        self.try_pack_with_width(sprites, order, index, heuristic, self.max_width)
+    }
+
+    /// Try packing with a specific heuristic, ordering, and width constraint
+    fn try_pack_with_width(
+        &self,
+        sprites: &[SourceSprite],
+        order: &[usize],
+        index: usize,
+        heuristic: PackingHeuristic,
+        max_width: u32,
+    ) -> PackingLayout {
+        let mut packer = MaxRectsPacker::new(max_width, self.max_height);
         let mut placements = Vec::new();
         let mut unpacked_indices = Vec::new();
         let mut max_x = 0u32;
@@ -418,32 +441,40 @@ impl AtlasBuilder {
             &[SpriteOrdering::Original]
         };
 
-        for &ordering in orderings {
-            if self.is_cancelled() {
-                break;
-            }
-            let order = self.sorted_indices(sprites, ordering);
+        // Generate width candidates to try different atlas shapes.
+        // Different bin widths force different layouts, and the optimal width
+        // depends on the sprite mix. We try multiples of the widest sprite.
+        let width_candidates = self.width_candidates(sprites);
 
-            for &heuristic in &ALL_HEURISTICS {
+        for &max_width in &width_candidates {
+            for &ordering in orderings {
                 if self.is_cancelled() {
                     break;
                 }
-                let layout = self.try_pack(sprites, &order, index, heuristic);
+                let order = self.sorted_indices(sprites, ordering);
 
-                let dominated = best
-                    .as_ref()
-                    .is_some_and(|(_, _, b)| !layout.is_better_than(b));
+                for &heuristic in &ALL_HEURISTICS {
+                    if self.is_cancelled() {
+                        break;
+                    }
+                    let layout =
+                        self.try_pack_with_width(sprites, &order, index, heuristic, max_width);
 
-                if !dominated {
-                    debug!(
-                        "Ordering {:?} + Heuristic {:?}: packed {}/{}, occupancy {:.1}%",
-                        ordering,
-                        heuristic,
-                        layout.placements.len(),
-                        sprites.len(),
-                        layout.occupancy * 100.0
-                    );
-                    best = Some((heuristic, ordering, layout));
+                    let dominated = best
+                        .as_ref()
+                        .is_some_and(|(_, _, b)| !layout.is_better_than(b));
+
+                    if !dominated {
+                        debug!(
+                            "Ordering {:?} + Heuristic {:?}: packed {}/{}, occupancy {:.1}%",
+                            ordering,
+                            heuristic,
+                            layout.placements.len(),
+                            sprites.len(),
+                            layout.occupancy * 100.0
+                        );
+                        best = Some((heuristic, ordering, layout));
+                    }
                 }
             }
         }
@@ -456,6 +487,33 @@ impl AtlasBuilder {
         // ALL_HEURISTICS and orderings are non-empty, so best is Some if not cancelled
         #[expect(clippy::expect_used, reason = "heuristics and orderings are non-empty")]
         Ok(best.expect("at least one heuristic should be tried"))
+    }
+
+    /// Generate width candidates for the width sweep optimization.
+    /// When pack_mode is Best, try different bin widths (multiples of the widest
+    /// padded sprite) to find the atlas shape that minimizes total area.
+    fn width_candidates(&self, sprites: &[SourceSprite]) -> Vec<u32> {
+        if self.pack_mode != PackMode::Best {
+            return vec![self.max_width];
+        }
+
+        let widest = sprites
+            .iter()
+            .map(|s| self.padded_size(s.width()))
+            .max()
+            .unwrap_or(1);
+
+        let mut candidates = Vec::new();
+        let mut w = widest;
+        while w <= self.max_width {
+            candidates.push(w);
+            w += widest;
+        }
+        // Always include the configured max_width
+        if candidates.last() != Some(&self.max_width) {
+            candidates.push(self.max_width);
+        }
+        candidates
     }
 
     /// Apply a computed layout to produce the final atlas
