@@ -147,7 +147,7 @@ pub fn preview_panel(ui: &mut egui::Ui, state: &mut AppState) {
     painter.rect_stroke(
         img_rect,
         0.0,
-        egui::Stroke::new(1.0, egui::Color32::from_gray(120)),
+        egui::Stroke::new(1.0_f32, egui::Color32::from_gray(120)),
     );
 
     // Draw debug overlay if enabled
@@ -235,7 +235,7 @@ fn show_packing_state(ui: &mut egui::Ui) {
     let center = rect.center();
     let time = ui.input(|i| i.time);
     let radius = 16.0;
-    let stroke_width = 3.0;
+    let stroke_width = 3.0_f32;
 
     // Spinning arc
     #[allow(clippy::cast_possible_truncation)]
@@ -372,7 +372,7 @@ fn draw_debug_overlay(
                     sprite_h + 2.0 * padding_offset,
                 ),
             );
-            painter.rect_stroke(padding_rect, 0.0, egui::Stroke::new(1.0, padding_color));
+            painter.rect_stroke(padding_rect, 0.0, egui::Stroke::new(1.0_f32, padding_color));
         }
 
         // 2. Draw extrusion region if extrude > 0
@@ -385,7 +385,7 @@ fn draw_debug_overlay(
                     sprite_h + 2.0 * extrude_offset,
                 ),
             );
-            painter.rect_stroke(extrude_rect, 0.0, egui::Stroke::new(1.0, extrude_color));
+            painter.rect_stroke(extrude_rect, 0.0, egui::Stroke::new(1.0_f32, extrude_color));
         }
 
         // 3. Draw sprite content boundary (innermost)
@@ -393,6 +393,6 @@ fn draw_debug_overlay(
             egui::pos2(sprite_x, sprite_y),
             egui::vec2(sprite_w, sprite_h),
         );
-        painter.rect_stroke(sprite_rect, 0.0, egui::Stroke::new(1.5, sprite_color));
+        painter.rect_stroke(sprite_rect, 0.0, egui::Stroke::new(1.5_f32, sprite_color));
     }
 }
