@@ -211,9 +211,9 @@ Findings:
 - `orphaned` - the atlas has a sprite with no source
 - `unhashed` - sprites with no `pixel_hash` (TexturePacker, or bento before 0.6), so `broken` cannot be ruled out for them
 
-It compares sprites only. A config change that a repack would apply, such as `padding`, `extrude`, `block_align`, `pot`, the size limits, trimming or turning `opaque` on, is not reported; repack after changing a config. Turning `opaque` off does show up, as `changed` on every sprite with transparency.
+It compares sprites only. A config change that a repack would apply, such as `padding`, `extrude`, `block_align`, `pot`, the size limits, trimming or turning `opaque` on, is not reported; repack after changing a config. Turning `opaque` off does show up, as `changed` on sprites whose packed pixels have transparency.
 
-Every config gets an entry; one that cannot be checked (missing or unparsable config, no tpsheet file, as with `format: json`) is reported with its error and does not stop the others. It exits 0 when every atlas matches its sources, 1 when anything is reported, and 2 when any config could not be checked (which wins over 1). Which findings call for a repack is the project's call; `broken` always does.
+Every config gets an entry; one that cannot be checked (missing or unparsable config, no tpsheet file, as with `format: json`) is reported with its error and does not stop the others. It exits 0 when nothing is reported, 1 when anything is reported (including `unhashed`, so an atlas without hashes never exits 0), and 2 when any config could not be checked (which wins over 1). Which findings call for a repack is the project's call; `broken` always does.
 
 ## Output Formats
 

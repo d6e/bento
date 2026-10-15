@@ -8,7 +8,7 @@
 //!
 //! It compares sprites only. A config change that a repack would apply (padding, extrude,
 //! block_align, pot, size limits, trimming, turning opaque on) is not detected. Turning opaque
-//! off shows up as `changed` on sprites with transparency.
+//! off shows up as `changed` on sprites whose packed pixels have transparency.
 
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
