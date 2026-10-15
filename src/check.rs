@@ -180,7 +180,9 @@ fn load_config_sources(loaded: &LoadedConfig) -> Result<Vec<SourceSprite>> {
 /// Returns why the tpsheet entry does not describe this png, if it does not.
 fn check_sprite_integrity(png: &RgbaImage, sprite: &TpSprite) -> Option<String> {
     let r = &sprite.region;
-    if r.x + r.w > png.width() || r.y + r.h > png.height() {
+    let fits =
+        |origin: u32, len: u32, page: u32| origin.checked_add(len).is_some_and(|end| end <= page);
+    if !fits(r.x, r.w, png.width()) || !fits(r.y, r.h, png.height()) {
         return Some(format!(
             "region ({}, {}, {}x{}) runs past the edge of the page",
             r.x, r.y, r.w, r.h
