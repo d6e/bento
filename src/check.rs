@@ -85,6 +85,11 @@ pub fn check_atlas(config_path: &Path) -> Result<AtlasReport> {
             Ok(img) => img.to_rgba8(),
             Err(e) => {
                 findings.push(page_finding(format!("cannot read {}: {}", page.image, e)));
+                // The sprites are listed, just unchecked, so they are not missing.
+                for sprite in &page.sprites {
+                    listed.insert(sprite.filename.as_str());
+                    by_name.remove(sprite.filename.as_str());
+                }
                 continue;
             }
         };

@@ -313,3 +313,19 @@ fn test_missing_config_is_an_error_not_a_clean_report() {
     assert!(!output.status.success());
     assert!(output.stdout.is_empty());
 }
+
+#[test]
+fn test_unreadable_page_is_broken_and_its_sprites_are_not_missing() {
+    let project = Project::new("unreadable_page", false);
+    project.pack();
+    let sheet: Value =
+        serde_json::from_str(&std::fs::read_to_string(project.tpsheet()).unwrap()).unwrap();
+    let image = sheet["textures"][0]["image"].as_str().unwrap();
+    std::fs::write(
+        project.dir.join("out").join(image),
+        "version https://git-lfs.github.com/spec/v1\n",
+    )
+    .unwrap();
+
+    assert_eq!(project.check(), (1, vec![("broken".to_string(), None)]));
+}
