@@ -243,7 +243,7 @@ mod tests {
     }
 
     fn make_temp_dir(name: &str) -> std::path::PathBuf {
-        let dir = std::env::temp_dir().join(format!("bento_test_{}", name));
+        let dir = std::env::temp_dir().join(format!("bento_test_{}_{}", name, std::process::id()));
         if dir.exists() {
             std::fs::remove_dir_all(&dir).expect("failed to clean temp dir");
         }

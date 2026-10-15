@@ -21,7 +21,7 @@ impl Project {
     /// Sprites with transparent borders (so trimming applies), partial alpha, and fully
     /// transparent pixels holding stray colour, which an opaque atlas must not compare on.
     fn new(name: &str, opaque: bool) -> Self {
-        let dir = std::env::temp_dir().join(format!("bento_check_{}", name));
+        let dir = std::env::temp_dir().join(format!("bento_check_{}_{}", name, std::process::id()));
         if dir.exists() {
             std::fs::remove_dir_all(&dir).unwrap();
         }

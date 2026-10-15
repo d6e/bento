@@ -246,7 +246,11 @@ mod tests {
                 atlas_index: 0,
             });
 
-            let dir = std::env::temp_dir().join(format!("bento_test_pixel_hash_{}", opaque));
+            let dir = std::env::temp_dir().join(format!(
+                "bento_test_pixel_hash_{}_{}",
+                opaque,
+                std::process::id()
+            ));
             std::fs::create_dir_all(&dir).unwrap();
             let png = dir.join("atlas.png");
             save_atlas_image(&atlas, &png, opaque, Some(CompressionLevel::Level(2))).unwrap();
