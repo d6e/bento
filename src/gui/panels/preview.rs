@@ -106,7 +106,8 @@ pub fn preview_panel(ui: &mut egui::Ui, state: &mut AppState) {
     }
 
     // Handle zoom with scroll
-    let scroll_delta = ui.input(|i| i.raw_scroll_delta.y);
+    let line_scroll_speed = ui.ctx().options(|o| o.input_options.line_scroll_speed);
+    let scroll_delta = ui.input(|i| raw_scroll_delta_y(i, line_scroll_speed));
     if scroll_delta != 0.0 && response.hovered() {
         let zoom_factor = 1.1_f32.powf(scroll_delta / 50.0);
         let new_zoom = (state.runtime.preview_zoom * zoom_factor).clamp(0.1, 10.0);
@@ -148,6 +149,7 @@ pub fn preview_panel(ui: &mut egui::Ui, state: &mut AppState) {
         img_rect,
         0.0,
         egui::Stroke::new(1.0_f32, egui::Color32::from_gray(120)),
+        egui::StrokeKind::Outside,
     );
 
     // Draw debug overlay if enabled
@@ -270,6 +272,33 @@ fn show_packing_state(ui: &mut egui::Ui) {
     ui.ctx().request_repaint();
 }
 
+/// Unsmoothed vertical mouse-wheel delta this frame, in points.
+///
+/// egui 0.30 exposed this as `InputState::raw_scroll_delta`; later versions only
+/// offer the smoothed delta, which is zero while a zoom modifier (Ctrl/Cmd) is
+/// held. Summing the wheel events keeps the preview zooming the same way: one
+/// notch is one step, with or without modifiers, and Shift turns the wheel
+/// horizontal so it does not zoom.
+fn raw_scroll_delta_y(input: &egui::InputState, line_scroll_speed: f32) -> f32 {
+    input
+        .events
+        .iter()
+        .filter_map(|event| match event {
+            egui::Event::MouseWheel {
+                unit,
+                delta,
+                modifiers,
+                ..
+            } if !modifiers.shift => Some(match unit {
+                egui::MouseWheelUnit::Point => delta.y,
+                egui::MouseWheelUnit::Line => line_scroll_speed * delta.y,
+                egui::MouseWheelUnit::Page => input.content_rect().height() * delta.y,
+            }),
+            _ => None,
+        })
+        .sum()
+}
+
 /// Draw a checkerboard background to show transparency
 fn draw_checkerboard(painter: &egui::Painter, rect: egui::Rect) {
     let checker_size: f32 = 8.0;
@@ -372,7 +401,12 @@ fn draw_debug_overlay(
                     sprite_h + 2.0 * padding_offset,
                 ),
             );
-            painter.rect_stroke(padding_rect, 0.0, egui::Stroke::new(1.0_f32, padding_color));
+            painter.rect_stroke(
+                padding_rect,
+                0.0,
+                egui::Stroke::new(1.0_f32, padding_color),
+                egui::StrokeKind::Outside,
+            );
         }
 
         // 2. Draw extrusion region if extrude > 0
@@ -385,7 +419,12 @@ fn draw_debug_overlay(
                     sprite_h + 2.0 * extrude_offset,
                 ),
             );
-            painter.rect_stroke(extrude_rect, 0.0, egui::Stroke::new(1.0_f32, extrude_color));
+            painter.rect_stroke(
+                extrude_rect,
+                0.0,
+                egui::Stroke::new(1.0_f32, extrude_color),
+                egui::StrokeKind::Outside,
+            );
         }
 
         // 3. Draw sprite content boundary (innermost)
@@ -393,6 +432,60 @@ fn draw_debug_overlay(
             egui::pos2(sprite_x, sprite_y),
             egui::vec2(sprite_w, sprite_h),
         );
-        painter.rect_stroke(sprite_rect, 0.0, egui::Stroke::new(1.5_f32, sprite_color));
+        painter.rect_stroke(
+            sprite_rect,
+            0.0,
+            egui::Stroke::new(1.5_f32, sprite_color),
+            egui::StrokeKind::Outside,
+        );
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn wheel(unit: egui::MouseWheelUnit, y: f32, modifiers: egui::Modifiers) -> egui::Event {
+        egui::Event::MouseWheel {
+            unit,
+            delta: egui::vec2(0.0, y),
+            phase: egui::TouchPhase::Move,
+            modifiers,
+        }
+    }
+
+    fn input_with(events: Vec<egui::Event>) -> egui::InputState {
+        let mut input = egui::InputState::default();
+        input.events = events;
+        input
+    }
+
+    #[test]
+    fn test_raw_scroll_delta_sums_wheel_events_unsmoothed() {
+        let input = input_with(vec![
+            wheel(egui::MouseWheelUnit::Point, 14.0, egui::Modifiers::NONE),
+            wheel(egui::MouseWheelUnit::Line, 2.0, egui::Modifiers::NONE),
+        ]);
+        assert_eq!(raw_scroll_delta_y(&input, 40.0), 14.0 + 2.0 * 40.0);
+    }
+
+    #[test]
+    fn test_raw_scroll_delta_counts_wheel_with_command_held() {
+        let input = input_with(vec![wheel(
+            egui::MouseWheelUnit::Point,
+            -10.0,
+            egui::Modifiers::COMMAND,
+        )]);
+        assert_eq!(raw_scroll_delta_y(&input, 40.0), -10.0);
+    }
+
+    #[test]
+    fn test_raw_scroll_delta_ignores_wheel_with_shift_held() {
+        let input = input_with(vec![wheel(
+            egui::MouseWheelUnit::Point,
+            10.0,
+            egui::Modifiers::SHIFT,
+        )]);
+        assert_eq!(raw_scroll_delta_y(&input, 40.0), 0.0);
     }
 }

@@ -310,20 +310,19 @@ impl BentoApp {
     fn handle_dropped_files(&mut self, ctx: &egui::Context) {
         ctx.input(|i| {
             for file in &i.raw.dropped_files {
-                if let Some(path) = &file.path {
-                    // Add files directly, or recursively add from directories
-                    if path.is_dir() {
-                        if let Ok(entries) = std::fs::read_dir(path) {
-                            for entry in entries.flatten() {
-                                let entry_path = entry.path();
-                                if entry_path.is_file() && is_supported_image(&entry_path) {
-                                    self.state.config.input_paths.push(entry_path);
-                                }
+                let path = file.path();
+                // Add files directly, or recursively add from directories
+                if path.is_dir() {
+                    if let Ok(entries) = std::fs::read_dir(path) {
+                        for entry in entries.flatten() {
+                            let entry_path = entry.path();
+                            if entry_path.is_file() && is_supported_image(&entry_path) {
+                                self.state.config.input_paths.push(entry_path);
                             }
                         }
-                    } else if is_supported_image(path) {
-                        self.state.config.input_paths.push(path.clone());
                     }
+                } else if is_supported_image(path) {
+                    self.state.config.input_paths.push(path.to_path_buf());
                 }
             }
         });
@@ -333,7 +332,7 @@ impl BentoApp {
         let is_hovering = ctx.input(|i| !i.raw.hovered_files.is_empty());
 
         if is_hovering {
-            let screen_rect = ctx.screen_rect();
+            let screen_rect = ctx.content_rect();
             let painter = ctx.layer_painter(egui::LayerId::new(
                 egui::Order::Foreground,
                 egui::Id::new("drop_overlay"),
@@ -347,6 +346,7 @@ impl BentoApp {
                 screen_rect,
                 0.0,
                 egui::Stroke::new(3.0_f32, egui::Color32::from_rgb(100, 150, 255)),
+                egui::StrokeKind::Outside,
             );
         }
     }
@@ -1036,7 +1036,13 @@ impl eframe::App for BentoApp {
         );
     }
 
-    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+    /// Window title, close handling, background tasks and auto-repack.
+    ///
+    /// eframe also calls this while the window is minimized or occluded, as long
+    /// as a repaint was requested, so background tasks keep finishing and closing
+    /// a hidden window still asks about unsaved changes. While hidden, only the
+    /// window state in the input is current, so input events are read in `ui`.
+    fn logic(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         // Update window title
         let title = if let Some(path) = &self.state.runtime.config_path {
             let name = path
@@ -1066,50 +1072,6 @@ impl eframe::App for BentoApp {
             }
             // If not dirty, allow the close to proceed naturally
         }
-
-        // Handle config chooser dialog
-        if let Some(ref mut chooser) = self.config_chooser
-            && let Some(selected) = chooser.show(ctx)
-        {
-            self.config_chooser = None;
-            if !selected.as_os_str().is_empty() {
-                self.load_config_file(&selected);
-            }
-        }
-
-        // Handle unsaved changes dialog
-        if let Some(ref mut dialog) = self.unsaved_changes_dialog
-            && let Some(choice) = dialog.show(ctx)
-        {
-            let pending_action = dialog.pending_action.clone();
-            self.unsaved_changes_dialog = None;
-
-            match choice {
-                UnsavedChangesChoice::Cancel => {
-                    // Do nothing, user cancelled
-                }
-                UnsavedChangesChoice::DontSave => {
-                    // Proceed without saving
-                    self.execute_pending_action(pending_action, ctx);
-                }
-                UnsavedChangesChoice::Save => {
-                    // If no path, prompt for Save As first (async)
-                    if self.state.runtime.config_path.is_none() {
-                        // Spawn Save As dialog and remember the pending action
-                        self.state.runtime.save_before_action = Some(pending_action);
-                        self.spawn_file_dialog(FileDialogKind::SaveConfigAs);
-                    } else {
-                        // We have a path, save and proceed
-                        if self.save_current_config().is_ok() {
-                            self.execute_pending_action(pending_action, ctx);
-                        }
-                    }
-                }
-            }
-        }
-
-        // Handle dropped files
-        self.handle_dropped_files(ctx);
 
         // Poll background tasks
         self.poll_pack_task(ctx);
@@ -1144,12 +1106,60 @@ impl eframe::App for BentoApp {
             .runtime
             .status
             .maybe_clear(Duration::from_secs(5));
+    }
+
+    fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
+        let ctx = ui.ctx().clone();
+
+        // Handle config chooser dialog
+        if let Some(ref mut chooser) = self.config_chooser
+            && let Some(selected) = chooser.show(&ctx)
+        {
+            self.config_chooser = None;
+            if !selected.as_os_str().is_empty() {
+                self.load_config_file(&selected);
+            }
+        }
+
+        // Handle unsaved changes dialog
+        if let Some(ref mut dialog) = self.unsaved_changes_dialog
+            && let Some(choice) = dialog.show(&ctx)
+        {
+            let pending_action = dialog.pending_action.clone();
+            self.unsaved_changes_dialog = None;
+
+            match choice {
+                UnsavedChangesChoice::Cancel => {
+                    // Do nothing, user cancelled
+                }
+                UnsavedChangesChoice::DontSave => {
+                    // Proceed without saving
+                    self.execute_pending_action(pending_action, &ctx);
+                }
+                UnsavedChangesChoice::Save => {
+                    // If no path, prompt for Save As first (async)
+                    if self.state.runtime.config_path.is_none() {
+                        // Spawn Save As dialog and remember the pending action
+                        self.state.runtime.save_before_action = Some(pending_action);
+                        self.spawn_file_dialog(FileDialogKind::SaveConfigAs);
+                    } else {
+                        // We have a path, save and proceed
+                        if self.save_current_config().is_ok() {
+                            self.execute_pending_action(pending_action, &ctx);
+                        }
+                    }
+                }
+            }
+        }
+
+        // Handle dropped files
+        self.handle_dropped_files(&ctx);
 
         // Top panel with title/menu bar could go here if needed
 
         // Bottom panel with Pack/Export buttons and status
-        let action = egui::TopBottomPanel::bottom("bottom_bar")
-            .show(ctx, |ui| panels::bottom_bar(ui, &mut self.state))
+        let action = egui::Panel::bottom("bottom_bar")
+            .show(ui, |ui| panels::bottom_bar(ui, &mut self.state))
             .inner;
 
         // Handle actions from bottom bar
@@ -1164,10 +1174,10 @@ impl eframe::App for BentoApp {
         }
 
         // Left panel with input controls
-        egui::SidePanel::left("input_panel")
-            .default_width(280.0)
-            .min_width(200.0)
-            .show(ctx, |ui| {
+        egui::Panel::left("input_panel")
+            .default_size(280.0)
+            .min_size(200.0)
+            .show(ui, |ui| {
                 let action = panels::input_panel(ui, &mut self.state);
 
                 if action.new_project && self.check_unsaved_changes(PendingAction::NewProject) {
@@ -1202,21 +1212,21 @@ impl eframe::App for BentoApp {
             });
 
         // Right panel with settings
-        egui::SidePanel::right("settings_panel")
-            .default_width(280.0)
-            .min_width(200.0)
-            .show(ctx, |ui| {
+        egui::Panel::right("settings_panel")
+            .default_size(280.0)
+            .min_size(200.0)
+            .show(ui, |ui| {
                 egui::ScrollArea::vertical().show(ui, |ui| {
                     panels::settings_panel(ui, &mut self.state);
                 });
             });
 
         // Central panel with preview
-        egui::CentralPanel::default().show(ctx, |ui| {
+        egui::CentralPanel::default().show(ui, |ui| {
             panels::preview_panel(ui, &mut self.state);
         });
 
         // Render drag-drop overlay on top of everything
-        self.render_drop_overlay(ctx);
+        self.render_drop_overlay(&ctx);
     }
 }

@@ -177,11 +177,11 @@ pub fn input_panel(ui: &mut egui::Ui, state: &mut AppState) -> InputPanelAction 
 
                 // Use Frame to draw selection background before content
                 let frame = if is_selected {
-                    egui::Frame::none()
+                    egui::Frame::NONE
                         .fill(ui.visuals().selection.bg_fill)
-                        .rounding(2.0)
+                        .corner_radius(2)
                 } else {
-                    egui::Frame::none()
+                    egui::Frame::NONE
                 };
 
                 let row_response = frame.show(ui, |ui| {

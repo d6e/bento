@@ -2,7 +2,7 @@
 name = "bento"
 version = "0.6.0"
 edition = "2024"
-rust-version = "1.88"
+rust-version = "1.95"
 description = "Texture packer for Godot 4.x"
 license = "MIT"
 
@@ -54,9 +54,9 @@ glob = "0.3"
 oxipng = { version = "9", default-features = false, features = ["parallel", "zopfli"] }
 
 # GUI dependencies (optional)
-eframe = { version = "0.30", optional = true, features = ["persistence"] }
-egui_extras = { version = "0.30", optional = true, features = ["image"] }
-rfd = { version = "0.15", optional = true }
+eframe = { version = "0.36", optional = true, features = ["persistence"] }
+egui_extras = { version = "0.36", optional = true, features = ["image"] }
+rfd = { version = "0.17", optional = true }
 
 [lints.clippy]
 # Unsafe code documentation
