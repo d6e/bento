@@ -46,9 +46,15 @@ pub struct Finding {
     pub detail: String,
 }
 
+/// Serialises a path as text, replacing invalid UTF-8 so a report is never lost to its own path.
+pub fn serialize_path_lossy<S: serde::Serializer>(path: &Path, s: S) -> Result<S::Ok, S::Error> {
+    s.serialize_str(&path.to_string_lossy())
+}
+
 #[derive(Debug, Clone, Serialize)]
 pub struct AtlasReport {
     pub atlas: String,
+    #[serde(serialize_with = "serialize_path_lossy")]
     pub config: PathBuf,
     pub findings: Vec<Finding>,
 }

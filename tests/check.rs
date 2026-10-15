@@ -447,3 +447,48 @@ fn test_partial_alpha_colour_edit_is_reported_as_changed() {
         (1, vec![finding("changed", "sprites/a.png")])
     );
 }
+
+#[cfg(unix)]
+#[test]
+fn test_non_utf8_config_path_is_still_reported() {
+    use std::ffi::OsStr;
+    use std::os::unix::ffi::OsStrExt;
+
+    let project = Project::new("non_utf8_path", false);
+    project.pack();
+    let odd = project.dir.join(OsStr::from_bytes(b"odd\xff.bento"));
+    std::fs::copy(project.dir.join("atlas.bento"), &odd).unwrap();
+    let missing = project.dir.join(OsStr::from_bytes(b"gone\xfe.bento"));
+
+    let run = |json: bool, configs: &[&Path]| {
+        let mut cmd = Command::new(env!("CARGO_BIN_EXE_bento"));
+        cmd.arg("check");
+        if json {
+            cmd.arg("--json");
+        }
+        cmd.args(configs).output().unwrap()
+    };
+
+    // A clean atlas whose config path is not UTF-8: the report is printed and the exit is 0.
+    let output = run(true, &[&odd]);
+    let stderr = String::from_utf8_lossy(&output.stderr).into_owned();
+    assert_eq!(output.status.code(), Some(0), "{}", stderr);
+    let reports: Value = serde_json::from_slice(&output.stdout).expect(&stderr);
+    assert_eq!(reports.as_array().unwrap().len(), 1);
+    assert_eq!(reports[0]["findings"].as_array().unwrap().len(), 0);
+    assert!(reports[0]["config"].as_str().unwrap().contains("odd"));
+
+    // An unchecked config with a non-UTF-8 path still exits 2 with valid JSON, next to the others.
+    let output = run(true, &[&odd, &missing]);
+    let stderr = String::from_utf8_lossy(&output.stderr).into_owned();
+    assert_eq!(output.status.code(), Some(2), "{}", stderr);
+    let reports: Value = serde_json::from_slice(&output.stdout).expect(&stderr);
+    assert_eq!(reports.as_array().unwrap().len(), 2);
+    assert!(reports[1]["error"].is_string());
+
+    // Text output has the same two outcomes.
+    let output = run(false, &[&odd]);
+    assert_eq!(output.status.code(), Some(0));
+    let output = run(false, &[&odd, &missing]);
+    assert_eq!(output.status.code(), Some(2));
+}

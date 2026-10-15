@@ -137,7 +137,11 @@ fn run() -> Result<()> {
 #[serde(untagged)]
 enum CheckEntry {
     Report(bento::check::AtlasReport),
-    Unchecked { config: PathBuf, error: String },
+    Unchecked {
+        #[serde(serialize_with = "bento::check::serialize_path_lossy")]
+        config: PathBuf,
+        error: String,
+    },
 }
 
 /// Prints a report per config, and for a config that cannot be checked (missing or unparsable
@@ -163,7 +167,13 @@ fn run_check(args: &CheckArgs) -> Result<()> {
         .collect();
 
     if args.json {
-        println!("{}", serde_json::to_string_pretty(&entries)?);
+        match serde_json::to_string_pretty(&entries) {
+            Ok(json) => println!("{}", json),
+            Err(e) => {
+                log::error!("could not serialise the check report: {}", e);
+                std::process::exit(2);
+            }
+        }
     } else {
         for entry in &entries {
             let report = match entry {
@@ -179,7 +189,7 @@ fn run_check(args: &CheckArgs) -> Result<()> {
             }
             println!("{}:", report.atlas);
             for finding in &report.findings {
-                let kind = serde_json::to_value(finding.kind)?;
+                let kind = serde_json::to_value(finding.kind).unwrap_or_default();
                 let kind = kind.as_str().unwrap_or_default();
                 match &finding.sprite {
                     Some(sprite) => println!("  {:<9} {}: {}", kind, sprite, finding.detail),
