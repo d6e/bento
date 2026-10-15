@@ -74,11 +74,24 @@ pub fn check_atlas(config_path: &Path) -> Result<AtlasReport> {
     let config = &loaded.config;
     let output_dir = loaded.resolve_output_dir();
     let tpsheet_path = output_dir.join(format!("{}.tpsheet", config.name));
-    let tpsheet: TpsheetOutput = serde_json::from_str(
-        &std::fs::read_to_string(&tpsheet_path)
-            .with_context(|| format!("failed to read {}", tpsheet_path.display()))?,
-    )
-    .with_context(|| format!("failed to parse {}", tpsheet_path.display()))?;
+    let bytes = std::fs::read(&tpsheet_path)
+        .with_context(|| format!("failed to read {}", tpsheet_path.display()))?;
+    // A tpsheet that exists but does not parse is merge damage (conflict markers, a bad text
+    // merge), so it is a finding on the atlas rather than a check that did not run.
+    let tpsheet: TpsheetOutput = match serde_json::from_slice(&bytes) {
+        Ok(tpsheet) => tpsheet,
+        Err(e) => {
+            return Ok(AtlasReport {
+                atlas: config.name.clone(),
+                config: config_path.to_path_buf(),
+                findings: vec![page_finding(format!(
+                    "cannot parse {}: {}",
+                    tpsheet_path.display(),
+                    e
+                ))],
+            });
+        }
+    };
 
     let sources = load_config_sources(&loaded)?;
     let mut by_name: HashMap<&str, &SourceSprite> =

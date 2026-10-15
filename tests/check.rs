@@ -82,7 +82,13 @@ impl Project {
             .unwrap_or_else(|e| panic!("{}: {}", e, String::from_utf8_lossy(&output.stderr)));
         let findings = reports[0]["findings"]
             .as_array()
-            .unwrap()
+            .unwrap_or_else(|| {
+                panic!(
+                    "exit {}, no findings: {}",
+                    output.status.code().unwrap(),
+                    reports[0]
+                )
+            })
             .iter()
             .map(|f| {
                 (
@@ -491,4 +497,27 @@ fn test_non_utf8_config_path_is_still_reported() {
     assert_eq!(output.status.code(), Some(0));
     let output = run(false, &[&odd, &missing]);
     assert_eq!(output.status.code(), Some(2));
+}
+
+/// A merge that leaves conflict markers in the tpsheet is merge damage to the atlas, not a
+/// config the check could not run on.
+#[test]
+fn test_tpsheet_with_conflict_markers_is_reported_as_broken() {
+    let project = Project::new("conflict_markers", false);
+    project.pack();
+    let text = std::fs::read_to_string(project.tpsheet()).unwrap();
+    std::fs::write(project.tpsheet(), format!("<<<<<<< HEAD\n{}", text)).unwrap();
+
+    let (code, findings) = project.check();
+    assert_eq!((code, findings), (1, vec![("broken".to_string(), None)]));
+}
+
+#[test]
+fn test_tpsheet_with_non_utf8_bytes_is_reported_as_broken() {
+    let project = Project::new("tpsheet_non_utf8", false);
+    project.pack();
+    std::fs::write(project.tpsheet(), [0xff, 0xfe, 0x00, 0x80]).unwrap();
+
+    let (code, findings) = project.check();
+    assert_eq!((code, findings), (1, vec![("broken".to_string(), None)]));
 }
