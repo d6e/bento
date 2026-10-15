@@ -102,11 +102,11 @@ fn is_glob_pattern(pattern: &str) -> bool {
 fn contains_brace_expansion(pattern: &str) -> bool {
     // Look for `{` followed eventually by `,` and then `}`
     // This avoids false positives on patterns that just happen to have a `{`
-    if let Some(open) = pattern.find('{') {
-        if let Some(close) = pattern[open..].find('}') {
-            let inside = &pattern[open + 1..open + close];
-            return inside.contains(',');
-        }
+    if let Some(open) = pattern.find('{')
+        && let Some(close) = pattern[open..].find('}')
+    {
+        let inside = &pattern[open + 1..open + close];
+        return inside.contains(',');
     }
     false
 }

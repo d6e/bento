@@ -468,11 +468,11 @@ impl BentoApp {
                     };
 
                     // Auto-save config if we have a config path
-                    if self.state.runtime.config_path.is_some() {
-                        if let Err(e) = self.save_current_config() {
-                            // Log error but don't fail the export
-                            log::warn!("Failed to auto-save config: {}", e);
-                        }
+                    if self.state.runtime.config_path.is_some()
+                        && let Err(e) = self.save_current_config()
+                    {
+                        // Log error but don't fail the export
+                        log::warn!("Failed to auto-save config: {}", e);
                     }
                 }
                 Err(err) => {
@@ -1068,40 +1068,40 @@ impl eframe::App for BentoApp {
         }
 
         // Handle config chooser dialog
-        if let Some(ref mut chooser) = self.config_chooser {
-            if let Some(selected) = chooser.show(ctx) {
-                self.config_chooser = None;
-                if !selected.as_os_str().is_empty() {
-                    self.load_config_file(&selected);
-                }
+        if let Some(ref mut chooser) = self.config_chooser
+            && let Some(selected) = chooser.show(ctx)
+        {
+            self.config_chooser = None;
+            if !selected.as_os_str().is_empty() {
+                self.load_config_file(&selected);
             }
         }
 
         // Handle unsaved changes dialog
-        if let Some(ref mut dialog) = self.unsaved_changes_dialog {
-            if let Some(choice) = dialog.show(ctx) {
-                let pending_action = dialog.pending_action.clone();
-                self.unsaved_changes_dialog = None;
+        if let Some(ref mut dialog) = self.unsaved_changes_dialog
+            && let Some(choice) = dialog.show(ctx)
+        {
+            let pending_action = dialog.pending_action.clone();
+            self.unsaved_changes_dialog = None;
 
-                match choice {
-                    UnsavedChangesChoice::Cancel => {
-                        // Do nothing, user cancelled
-                    }
-                    UnsavedChangesChoice::DontSave => {
-                        // Proceed without saving
-                        self.execute_pending_action(pending_action, ctx);
-                    }
-                    UnsavedChangesChoice::Save => {
-                        // If no path, prompt for Save As first (async)
-                        if self.state.runtime.config_path.is_none() {
-                            // Spawn Save As dialog and remember the pending action
-                            self.state.runtime.save_before_action = Some(pending_action);
-                            self.spawn_file_dialog(FileDialogKind::SaveConfigAs);
-                        } else {
-                            // We have a path, save and proceed
-                            if self.save_current_config().is_ok() {
-                                self.execute_pending_action(pending_action, ctx);
-                            }
+            match choice {
+                UnsavedChangesChoice::Cancel => {
+                    // Do nothing, user cancelled
+                }
+                UnsavedChangesChoice::DontSave => {
+                    // Proceed without saving
+                    self.execute_pending_action(pending_action, ctx);
+                }
+                UnsavedChangesChoice::Save => {
+                    // If no path, prompt for Save As first (async)
+                    if self.state.runtime.config_path.is_none() {
+                        // Spawn Save As dialog and remember the pending action
+                        self.state.runtime.save_before_action = Some(pending_action);
+                        self.spawn_file_dialog(FileDialogKind::SaveConfigAs);
+                    } else {
+                        // We have a path, save and proceed
+                        if self.save_current_config().is_ok() {
+                            self.execute_pending_action(pending_action, ctx);
                         }
                     }
                 }
@@ -1174,13 +1174,13 @@ impl eframe::App for BentoApp {
                     self.new_project();
                 }
 
-                if action.save_config {
-                    if let Err(e) = self.save_current_config() {
-                        self.state.runtime.status = Status::Done {
-                            result: StatusResult::Error(format!("Failed to save: {}", e)),
-                            at: std::time::Instant::now(),
-                        };
-                    }
+                if action.save_config
+                    && let Err(e) = self.save_current_config()
+                {
+                    self.state.runtime.status = Status::Done {
+                        result: StatusResult::Error(format!("Failed to save: {}", e)),
+                        at: std::time::Instant::now(),
+                    };
                 }
 
                 // Spawn file dialogs (these run in background threads)
