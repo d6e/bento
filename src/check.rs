@@ -268,7 +268,7 @@ fn compare_to_source(
     let distances: Vec<u8> = packed
         .pixels()
         .zip(current.pixels())
-        .map(|(a, b)| premultiplied_distance(a.0, b.0))
+        .map(|(a, b)| pixel_distance(a.0, b.0))
         .collect();
     let changed = distances.iter().filter(|d| **d > 0).count();
     let largest = distances.iter().copied().max().unwrap_or(0);
@@ -291,14 +291,12 @@ fn put(image: &mut RgbaImage, x: i32, y: i32, px: image::Rgba<u8>) {
     }
 }
 
-fn premultiplied_distance(a: [u8; 4], b: [u8; 4]) -> u8 {
-    let pm =
-        |c: u8, alpha: u8| u8::try_from(u16::from(c) * u16::from(alpha) / 255).unwrap_or(u8::MAX);
-    (0..3)
-        .map(|i| pm(a[i], a[3]).abs_diff(pm(b[i], b[3])))
-        .chain(std::iter::once(a[3].abs_diff(b[3])))
-        .max()
-        .unwrap_or(0)
+/// Largest per-channel difference between two pixels, compared the way `pixel_hash` does: a
+/// fully transparent pixel is (0, 0, 0, 0) and any other pixel is compared as stored.
+fn pixel_distance(a: [u8; 4], b: [u8; 4]) -> u8 {
+    let normalise = |px: [u8; 4]| if px[3] == 0 { [0; 4] } else { px };
+    let (a, b) = (normalise(a), normalise(b));
+    (0..4).map(|i| a[i].abs_diff(b[i])).max().unwrap_or(0)
 }
 
 fn page_finding(detail: String) -> Finding {

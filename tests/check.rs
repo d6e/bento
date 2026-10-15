@@ -419,3 +419,31 @@ fn test_unreadable_page_is_broken_and_its_sprites_are_not_missing() {
 
     assert_eq!(project.check(), (1, vec![("broken".to_string(), None)]));
 }
+
+#[test]
+fn test_partial_alpha_colour_edit_is_reported_as_changed() {
+    let project = Project::new("partial_alpha_edit", false);
+    // No trim and no resize, so the source reaches the atlas pixel for pixel.
+    std::fs::write(
+        project.dir.join("atlas.bento"),
+        r#"{"version": 1, "input": ["sprites/*.png"], "output_dir": "out", "name": "atlas",
+            "trim_margin": 0, "padding": 2, "opaque": false, "compress": 2}"#,
+    )
+    .unwrap();
+    let write = |colour: u8| {
+        RgbaImage::from_pixel(8, 8, Rgba([colour, 0, 0, 128]))
+            .save(project.sprite("a"))
+            .unwrap();
+    };
+    write(100);
+    project.pack();
+    assert_eq!(project.check(), (0, vec![]));
+
+    // 100 and 101 premultiply to the same u8 at alpha 128, but a repack changes the png.
+    write(101);
+
+    assert_eq!(
+        project.check(),
+        (1, vec![finding("changed", "sprites/a.png")])
+    );
+}
