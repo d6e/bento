@@ -6,7 +6,7 @@ mod tpsheet;
 pub use format::save_atlas_image;
 pub use godot::write_godot_resources;
 pub use json::write_json;
-pub use tpsheet::write_tpsheet;
+pub use tpsheet::{pixel_hash, write_tpsheet};
 
 /// Returns the PNG filename for an atlas. Single-atlas packs use `{name}.png`,
 /// multi-atlas packs use `{name}_{index}.png`.

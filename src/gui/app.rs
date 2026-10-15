@@ -895,7 +895,8 @@ fn export_atlases(atlases: &[Atlas], config: &AppConfig) -> Result<(), String> {
                 .map_err(|e| e.to_string())?;
         }
         OutputFormat::Tpsheet => {
-            write_tpsheet(atlases, &config.output_dir, &config.name).map_err(|e| e.to_string())?;
+            write_tpsheet(atlases, &config.output_dir, &config.name, config.opaque)
+                .map_err(|e| e.to_string())?;
         }
     }
 

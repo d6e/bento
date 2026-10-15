@@ -228,6 +228,10 @@ Generates a single JSON manifest. This is the recommended format for Godot proje
 }
 ```
 
+### TexturePacker .tpsheet
+
+Same layout as TexturePacker's Godot export, plus a `pixel_hash` on each sprite: FNV-1a 64 over the sprite's region in the saved png, as 16 hex digits. Hash the decoded png as RGBA8, row by row, counting fully transparent pixels as all zeroes. If any sprite's hash differs, the tpsheet and the png come from different packs, which is what a merge that picks one side of the png but text-merges the tpsheet leaves behind.
+
 ## Config Files
 
 You can save packing settings in a `.bento` JSON config file for reproducible builds:

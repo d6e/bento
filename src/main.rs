@@ -116,7 +116,7 @@ fn run() -> Result<()> {
             );
         }
         Command::Tpsheet(_) => {
-            write_tpsheet(&atlases, &merged.output, &merged.name)?;
+            write_tpsheet(&atlases, &merged.output, &merged.name, merged.opaque)?;
             info!("Generated {}.tpsheet", merged.name);
         }
         #[cfg(feature = "gui")]
