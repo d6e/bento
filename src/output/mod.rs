@@ -1,7 +1,7 @@
 mod format;
 mod godot;
 mod json;
-mod tpsheet;
+pub(crate) mod tpsheet;
 
 pub use format::save_atlas_image;
 pub use godot::write_godot_resources;

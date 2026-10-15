@@ -1,5 +1,6 @@
 mod args;
 
 pub use args::{
-    CliArgs, Command, CommonArgs, CompressionLevel, PackMode, PackingHeuristic, ResizeFilter,
+    CheckArgs, CliArgs, Command, CommonArgs, CompressionLevel, PackMode, PackingHeuristic,
+    ResizeFilter,
 };

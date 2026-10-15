@@ -3,58 +3,61 @@ use std::path::Path;
 
 use anyhow::Result;
 use image::RgbaImage;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use crate::atlas::Atlas;
 use crate::error::BentoError;
 use crate::output::atlas_png_filename;
 use crate::sprite::PackedSprite;
 
-#[derive(Serialize)]
-struct TpsheetOutput {
-    textures: Vec<TpTexture>,
+#[derive(Serialize, Deserialize)]
+pub(crate) struct TpsheetOutput {
+    pub(crate) textures: Vec<TpTexture>,
+    #[serde(skip_deserializing)]
     meta: TpMeta,
 }
 
-#[derive(Serialize)]
-struct TpTexture {
-    image: String,
-    size: TpSize,
-    sprites: Vec<TpSprite>,
+#[derive(Serialize, Deserialize)]
+pub(crate) struct TpTexture {
+    pub(crate) image: String,
+    pub(crate) size: TpSize,
+    pub(crate) sprites: Vec<TpSprite>,
 }
 
-#[derive(Serialize)]
-struct TpSize {
-    w: u32,
-    h: u32,
+#[derive(Serialize, Deserialize)]
+pub(crate) struct TpSize {
+    pub(crate) w: u32,
+    pub(crate) h: u32,
 }
 
-#[derive(Serialize)]
-struct TpSprite {
-    filename: String,
-    region: TpRegion,
-    margin: TpMargin,
+#[derive(Serialize, Deserialize)]
+pub(crate) struct TpSprite {
+    pub(crate) filename: String,
+    pub(crate) region: TpRegion,
+    pub(crate) margin: TpMargin,
     /// See [`pixel_hash`]. Lets a consumer check that the tpsheet still describes this png.
-    pixel_hash: String,
+    /// Absent in tpsheets from TexturePacker or bento before 0.7.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) pixel_hash: Option<String>,
 }
 
-#[derive(Serialize)]
-struct TpRegion {
-    x: u32,
-    y: u32,
-    w: u32,
-    h: u32,
+#[derive(Serialize, Deserialize)]
+pub(crate) struct TpRegion {
+    pub(crate) x: u32,
+    pub(crate) y: u32,
+    pub(crate) w: u32,
+    pub(crate) h: u32,
 }
 
-#[derive(Serialize)]
-struct TpMargin {
-    x: i32,
-    y: i32,
-    w: u32,
-    h: u32,
+#[derive(Serialize, Deserialize)]
+pub(crate) struct TpMargin {
+    pub(crate) x: i32,
+    pub(crate) y: i32,
+    pub(crate) w: u32,
+    pub(crate) h: u32,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Default)]
 struct TpMeta {
     app: &'static str,
     version: &'static str,
@@ -156,14 +159,14 @@ fn sprite_to_tpsprite(sprite: &PackedSprite, image: &RgbaImage, opaque: bool) ->
             w: trim.source_width - trim.trimmed_width,
             h: trim.source_height - trim.trimmed_height,
         },
-        pixel_hash: pixel_hash(
+        pixel_hash: Some(pixel_hash(
             image,
             sprite.x,
             sprite.y,
             sprite.width,
             sprite.height,
             opaque,
-        ),
+        )),
     }
 }
 
@@ -250,7 +253,9 @@ mod tests {
             let decoded = image::open(&png).unwrap().to_rgba8();
             std::fs::remove_dir_all(&dir).unwrap();
 
-            let written = sprite_to_tpsprite(&atlas.sprites[0], &atlas.image, opaque).pixel_hash;
+            let written = sprite_to_tpsprite(&atlas.sprites[0], &atlas.image, opaque)
+                .pixel_hash
+                .unwrap();
             // A consumer does not know the colour mode; it hashes what it decodes.
             assert_eq!(
                 pixel_hash(&decoded, 1, 2, 9, 11, false),

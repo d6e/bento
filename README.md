@@ -96,6 +96,7 @@ bento json sprites/*.png -o output/    # JSON metadata (recommended)
 bento godot sprites/*.png -o output/   # Individual Godot .tres files
 bento tpsheet sprites/*.png -o output/ # TexturePacker-compatible .tpsheet
 bento gui                              # Launch GUI (requires --features gui)
+bento check atlas.bento                # Compare a packed atlas with its sources
 ```
 
 ### Examples
@@ -192,6 +193,25 @@ bento json sprites/*.png -o output/ --compress max    # maximum compression (slo
 | `best` | Try multiple orderings (by area, perimeter, max dimension) and pick the best |
 
 Combine `--heuristic best --pack-mode best` for maximum packing efficiency at the cost of longer processing time.
+
+### Checking an atlas
+
+`bento check` takes one or more `.bento` configs of tpsheet atlases and compares each packed atlas with its sources, without repacking:
+
+```bash
+bento check atlases/*.bento          # human-readable report
+bento check atlases/*.bento --json   # for scripts
+```
+
+Findings:
+
+- `broken` - the tpsheet does not describe the png: wrong page size, a region past the edge, or a sprite whose `pixel_hash` does not match. Usually a merge that combined two packs. Repack.
+- `changed` - the atlas holds different pixels from the sprite's source, compared the way a pack would process the source now
+- `missing` - a source is not in the atlas
+- `orphaned` - the atlas has a sprite with no source
+- `unhashed` - sprites with no `pixel_hash` (TexturePacker, or bento before 0.7), so `broken` cannot be ruled out for them
+
+It exits 0 when every atlas matches its sources and 1 when anything is reported. Which findings call for a repack is the project's call; `broken` always does.
 
 ## Output Formats
 

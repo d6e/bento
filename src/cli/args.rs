@@ -17,9 +17,22 @@ pub enum Command {
     Godot(CommonArgs),
     /// Output TexturePacker .tpsheet metadata
     Tpsheet(CommonArgs),
+    /// Compare tpsheet atlases with their sources without repacking
+    Check(CheckArgs),
     /// Launch the GUI
     #[cfg(feature = "gui")]
     Gui,
+}
+
+#[derive(Args, Debug, Clone)]
+pub struct CheckArgs {
+    /// .bento config files of the atlases to check
+    #[arg(required = true, value_name = "CONFIG")]
+    pub configs: Vec<PathBuf>,
+
+    /// Print the report as JSON
+    #[arg(long)]
+    pub json: bool,
 }
 
 #[derive(Args, Debug, Clone)]

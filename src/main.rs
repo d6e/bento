@@ -6,8 +6,10 @@ use clap::Parser;
 use log::info;
 
 use bento::atlas::AtlasBuilder;
+use bento::check::check_atlas;
 use bento::cli::{
-    CliArgs, Command, CommonArgs, CompressionLevel, PackMode, PackingHeuristic, ResizeFilter,
+    CheckArgs, CliArgs, Command, CommonArgs, CompressionLevel, PackMode, PackingHeuristic,
+    ResizeFilter,
 };
 use bento::config::{CompressConfig, LoadedConfig, ResizeConfig};
 use bento::output::{
@@ -43,6 +45,7 @@ fn run() -> Result<()> {
     // Extract common args from subcommand
     let args = match &cli.command {
         Command::Json(args) | Command::Godot(args) | Command::Tpsheet(args) => args.clone(),
+        Command::Check(args) => return run_check(args),
         #[cfg(feature = "gui")]
         Command::Gui => unreachable!(),
     };
@@ -115,6 +118,7 @@ fn run() -> Result<()> {
                 atlases.iter().map(|a| a.sprites.len()).sum::<usize>()
             );
         }
+        Command::Check(_) => unreachable!(),
         Command::Tpsheet(_) => {
             write_tpsheet(&atlases, &merged.output, &merged.name, merged.opaque)?;
             info!("Generated {}.tpsheet", merged.name);
@@ -125,6 +129,45 @@ fn run() -> Result<()> {
 
     info!("Done!");
 
+    Ok(())
+}
+
+/// Prints a report per atlas. Exits 1 if any atlas has a finding, so a script can gate on it.
+#[allow(clippy::print_stdout)]
+fn run_check(args: &CheckArgs) -> Result<()> {
+    env_logger::Builder::new()
+        .filter_level(log::LevelFilter::Warn)
+        .init();
+
+    let reports = args
+        .configs
+        .iter()
+        .map(|config| check_atlas(config))
+        .collect::<Result<Vec<_>>>()?;
+
+    if args.json {
+        println!("{}", serde_json::to_string_pretty(&reports)?);
+    } else {
+        for report in &reports {
+            if report.findings.is_empty() {
+                println!("{}: matches its sources", report.atlas);
+                continue;
+            }
+            println!("{}:", report.atlas);
+            for finding in &report.findings {
+                let kind = serde_json::to_value(finding.kind)?;
+                let kind = kind.as_str().unwrap_or_default();
+                match &finding.sprite {
+                    Some(sprite) => println!("  {:<9} {}: {}", kind, sprite, finding.detail),
+                    None => println!("  {:<9} {}", kind, finding.detail),
+                }
+            }
+        }
+    }
+
+    if reports.iter().any(|r| !r.findings.is_empty()) {
+        std::process::exit(1);
+    }
     Ok(())
 }
 
