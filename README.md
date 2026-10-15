@@ -205,7 +205,7 @@ bento check atlases/*.bento --json   # for scripts
 
 Findings:
 
-- `broken` - the tpsheet does not describe the png: a page that cannot be read or has the wrong size, a region past the edge, a margin no pack could have written, a sprite whose `pixel_hash` does not match, a sprite listed more than once, or a tpsheet that is not valid JSON (conflict markers). Usually a merge that combined two packs. Repack.
+- `broken` - the tpsheet does not describe the png: a page that cannot be read or has the wrong size, a region past the edge, a margin no pack could have written, a sprite whose `pixel_hash` does not match, a sprite listed more than once, or a tpsheet that cannot be parsed (conflict markers, an empty or truncated file, a different format). Usually a merge that combined two packs. Repack.
 - `changed` - the atlas holds different pixels from the sprite's source, compared the way a pack would process the source now
 - `missing` - a source is not in the atlas
 - `orphaned` - the atlas has a sprite with no source

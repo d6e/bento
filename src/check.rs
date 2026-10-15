@@ -2,9 +2,9 @@
 //!
 //! It answers two questions that need different handling. Is the atlas broken, meaning its
 //! tpsheet no longer describes its png (an unreadable page or a wrong page size, a region or
-//! margin no pack could have written, a pixel hash that does not match, a sprite listed twice)?
-//! That is always a bug. And is a repack due, meaning sources were added,
-//! removed or edited since the last pack? That is normal between packs.
+//! margin no pack could have written, a pixel hash that does not match, a sprite listed twice,
+//! a tpsheet that cannot be parsed)? That is always a bug. And is a repack due, meaning sources
+//! were added, removed or edited since the last pack? That is normal between packs.
 //!
 //! It compares sprites only. A config change that a repack would apply (padding, extrude,
 //! block_align, pot, size limits, trimming, turning opaque on) is not detected. Turning opaque
@@ -76,8 +76,9 @@ pub fn check_atlas(config_path: &Path) -> Result<AtlasReport> {
     let tpsheet_path = output_dir.join(format!("{}.tpsheet", config.name));
     let bytes = std::fs::read(&tpsheet_path)
         .with_context(|| format!("failed to read {}", tpsheet_path.display()))?;
-    // A tpsheet that exists but does not parse is merge damage (conflict markers, a bad text
-    // merge), so it is a finding on the atlas rather than a check that did not run.
+    // A tpsheet that exists but does not parse (conflict markers, a bad text merge, an empty or
+    // truncated file) is fixed by a repack, so it is a finding on the atlas rather than a check
+    // that did not run.
     let tpsheet: TpsheetOutput = match serde_json::from_slice(&bytes) {
         Ok(tpsheet) => tpsheet,
         Err(e) => {
