@@ -188,6 +188,15 @@ fn check_sprite_integrity(png: &RgbaImage, sprite: &TpSprite) -> Option<String> 
             r.x, r.y, r.w, r.h
         ));
     }
+    let m = &sprite.margin;
+    let sized = r.w.checked_add(m.w).is_some() && r.h.checked_add(m.h).is_some();
+    let inside = |offset: i32, slack: u32| u32::try_from(offset).is_ok_and(|o| o <= slack);
+    if !sized || !inside(m.x, m.w) || !inside(m.y, m.h) {
+        return Some(format!(
+            "margin ({}, {}, {}x{}) is not one a pack could have written for a {}x{} region",
+            m.x, m.y, m.w, m.h, r.w, r.h
+        ));
+    }
     let expected = sprite.pixel_hash.as_ref()?;
     let actual = pixel_hash(png, r.x, r.y, r.w, r.h, false);
     (&actual != expected).then(|| {

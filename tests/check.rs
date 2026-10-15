@@ -237,6 +237,39 @@ fn test_region_that_overflows_u32_is_broken_not_a_panic() {
     );
 }
 
+#[test]
+fn test_margin_that_overflows_u32_is_broken_not_a_panic() {
+    let project = Project::new("margin_overflow", false);
+    project.pack();
+    project.edit_tpsheet(|sheet| {
+        let a = sprite_index(sheet, "sprites/a.png");
+        let margin = &mut sheet["textures"][0]["sprites"][a]["margin"];
+        margin["w"] = u32::MAX.into();
+        margin["h"] = u32::MAX.into();
+    });
+
+    assert_eq!(
+        project.check(),
+        (1, vec![finding("broken", "sprites/a.png")])
+    );
+}
+
+#[test]
+fn test_margin_offset_that_overflows_i32_is_broken_not_a_panic() {
+    let project = Project::new("margin_offset_overflow", false);
+    project.pack();
+    project.edit_tpsheet(|sheet| {
+        let a = sprite_index(sheet, "sprites/a.png");
+        let margin = &mut sheet["textures"][0]["sprites"][a]["margin"];
+        margin["x"] = i32::MAX.into();
+    });
+
+    assert_eq!(
+        project.check(),
+        (1, vec![finding("broken", "sprites/a.png")])
+    );
+}
+
 /// TexturePacker and older bento write no hashes; check still compares sources but says so.
 #[test]
 fn test_tpsheet_without_hashes_is_reported_as_unhashed() {
