@@ -19,10 +19,6 @@ use crate::output::pixel_hash;
 use crate::output::tpsheet::{TpSprite, TpsheetOutput};
 use crate::sprite::{SourceSprite, load_sprites};
 
-/// A pixel counts as changed when a premultiplied channel moves by more than this. Resampling
-/// noise between bento versions stays well under it; an edit to the art does not.
-const PIXEL_THRESHOLD: u8 = 32;
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum FindingKind {
@@ -271,7 +267,7 @@ fn compare_to_source(
         .zip(current.pixels())
         .map(|(a, b)| premultiplied_distance(a.0, b.0))
         .collect();
-    let changed = distances.iter().filter(|d| **d > PIXEL_THRESHOLD).count();
+    let changed = distances.iter().filter(|d| **d > 0).count();
     let largest = distances.iter().copied().max().unwrap_or(0);
     (changed > 0).then(|| {
         format!(

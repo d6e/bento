@@ -147,6 +147,51 @@ fn test_edited_source_is_reported_as_changed() {
     );
 }
 
+/// Rewrites every pixel of a sprite that is not fully transparent.
+fn edit_sprite(project: &Project, name: &str, edit: impl Fn(Rgba<u8>) -> Rgba<u8>) {
+    let path = project.sprite(name);
+    let mut img = image::open(&path).unwrap().to_rgba8();
+    for px in img.pixels_mut() {
+        if px.0[3] != 0 {
+            *px = edit(*px);
+        }
+    }
+    img.save(&path).unwrap();
+}
+
+#[test]
+fn test_small_colour_edit_is_reported_as_changed() {
+    let project = Project::new("small_colour_edit", false);
+    project.pack();
+    edit_sprite(&project, "b", |Rgba([r, g, b, a])| {
+        Rgba([
+            r.saturating_add(10),
+            g.saturating_add(10),
+            b.saturating_add(10),
+            a,
+        ])
+    });
+
+    assert_eq!(
+        project.check(),
+        (1, vec![finding("changed", "sprites/b.png")])
+    );
+}
+
+#[test]
+fn test_alpha_only_edit_is_reported_as_changed() {
+    let project = Project::new("alpha_only_edit", false);
+    project.pack();
+    edit_sprite(&project, "b", |Rgba([r, g, b, a])| {
+        Rgba([r, g, b, if a == 255 { 225 } else { a }])
+    });
+
+    assert_eq!(
+        project.check(),
+        (1, vec![finding("changed", "sprites/b.png")])
+    );
+}
+
 #[test]
 fn test_added_and_deleted_sources_are_reported() {
     let project = Project::new("added_deleted", false);
