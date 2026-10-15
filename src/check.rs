@@ -4,6 +4,9 @@
 //! tpsheet no longer describes its png (a page size, an out-of-bounds region, or a pixel hash
 //! that does not match)? That is always a bug. And is a repack due, meaning sources were added,
 //! removed or edited since the last pack? That is normal between packs.
+//!
+//! It compares sprites only. A config change that a repack would apply (padding, extrude,
+//! block_align, pot, size limits, opaque, trimming) is not detected.
 
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};

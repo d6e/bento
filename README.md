@@ -211,6 +211,8 @@ Findings:
 - `orphaned` - the atlas has a sprite with no source
 - `unhashed` - sprites with no `pixel_hash` (TexturePacker, or bento before 0.7), so `broken` cannot be ruled out for them
 
+It compares sprites only. A config change that a repack would apply, such as `padding`, `extrude`, `block_align`, `pot`, the size limits, `opaque` or trimming, is not reported; repack after changing a config.
+
 Every config gets an entry; one that cannot be checked (missing or unparsable config, no tpsheet, as with `format: json`) is reported with its error and does not stop the others. It exits 0 when every atlas matches its sources, 1 when anything is reported, and 2 when any config could not be checked (which wins over 1). Which findings call for a repack is the project's call; `broken` always does.
 
 ## Output Formats
@@ -250,7 +252,15 @@ Generates a single JSON manifest. This is the recommended format for Godot proje
 
 ### TexturePacker .tpsheet
 
-Same layout as TexturePacker's Godot export, plus a `pixel_hash` on each sprite: FNV-1a 64 over the sprite's region in the saved png, as 16 hex digits. Hash the decoded png as RGBA8, row by row, counting fully transparent pixels as all zeroes. If any sprite's hash differs, the tpsheet and the png come from different packs, which is what a merge that picks one side of the png but text-merges the tpsheet leaves behind.
+Same layout as TexturePacker's Godot export, plus a `pixel_hash` on each sprite. If any sprite's hash differs from what its region in the png hashes to, the tpsheet and the png come from different packs, which is what a merge that picks one side of the png but text-merges the tpsheet leaves behind.
+
+To compute it from the saved png:
+
+- Decode the page and expand every pixel to RGBA8. A png saved without alpha (an `opaque` atlas) gets alpha 255.
+- Take the sprite's `region` only: rows top to bottom, and within a row x left to right.
+- For each pixel feed the bytes R, G, B, A, except that a pixel with alpha 0 feeds 0, 0, 0, 0.
+- Hash the bytes with FNV-1a 64 (offset basis `0xcbf29ce484222325`, prime `0x100000001b3`).
+- Write the result as 16 lowercase hex digits.
 
 ## Config Files
 
