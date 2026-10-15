@@ -192,6 +192,24 @@ fn test_regions_from_another_pack_are_reported_as_broken() {
     );
 }
 
+/// A text merge of two packs can list one sprite twice. The source exists, so it is not orphaned.
+#[test]
+fn test_sprite_listed_twice_is_reported_as_broken_not_orphaned() {
+    let project = Project::new("listed_twice", false);
+    project.pack();
+    project.edit_tpsheet(|sheet| {
+        let a = sprite_index(sheet, "sprites/a.png");
+        let sprites = sheet["textures"][0]["sprites"].as_array_mut().unwrap();
+        let copy = sprites[a].clone();
+        sprites.push(copy);
+    });
+
+    assert_eq!(
+        project.check(),
+        (1, vec![finding("broken", "sprites/a.png")])
+    );
+}
+
 #[test]
 fn test_page_size_that_does_not_match_the_png_is_broken() {
     let project = Project::new("page_size", false);

@@ -5,7 +5,7 @@
 //! that does not match)? That is always a bug. And is a repack due, meaning sources were added,
 //! removed or edited since the last pack? That is normal between packs.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
@@ -78,6 +78,7 @@ pub fn check_atlas(config_path: &Path) -> Result<AtlasReport> {
         sources.iter().map(|s| (s.name.as_str(), s)).collect();
 
     let mut findings = Vec::new();
+    let mut listed: HashSet<&str> = HashSet::new();
     for page in &tpsheet.textures {
         let png_path = output_dir.join(&page.image);
         let png = match image::open(&png_path) {
@@ -101,6 +102,16 @@ pub fn check_atlas(config_path: &Path) -> Result<AtlasReport> {
 
         let mut unhashed = 0;
         for sprite in &page.sprites {
+            // The first entry keeps the source and is judged on its own; only the repeats are
+            // malformed, since the tpsheet cannot say which of the two a pack wrote.
+            if !listed.insert(sprite.filename.as_str()) {
+                findings.push(sprite_finding(
+                    FindingKind::Broken,
+                    sprite,
+                    "listed more than once in the tpsheet".to_string(),
+                ));
+                continue;
+            }
             let source = by_name.remove(sprite.filename.as_str());
             if let Some(broken) = check_sprite_integrity(&png, sprite) {
                 findings.push(sprite_finding(FindingKind::Broken, sprite, broken));
