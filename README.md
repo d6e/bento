@@ -211,7 +211,7 @@ Findings:
 - `orphaned` - the atlas has a sprite with no source
 - `unhashed` - sprites with no `pixel_hash` (TexturePacker, or bento before 0.7), so `broken` cannot be ruled out for them
 
-It exits 0 when every atlas matches its sources and 1 when anything is reported. Which findings call for a repack is the project's call; `broken` always does.
+Every config gets an entry; one that cannot be checked (missing or unparsable config, no tpsheet, as with `format: json`) is reported with its error and does not stop the others. It exits 0 when every atlas matches its sources, 1 when anything is reported, and 2 when any config could not be checked (which wins over 1). Which findings call for a repack is the project's call; `broken` always does.
 
 ## Output Formats
 

@@ -355,8 +355,53 @@ fn test_missing_config_is_an_error_not_a_clean_report() {
         .output()
         .unwrap();
 
-    assert!(!output.status.success());
-    assert!(output.stdout.is_empty());
+    assert_eq!(output.status.code(), Some(2));
+    let reports: Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(reports.as_array().unwrap().len(), 1);
+    assert!(
+        reports[0]["error"]
+            .as_str()
+            .unwrap()
+            .contains("atlas.bento")
+    );
+    assert!(reports[0].get("findings").is_none());
+}
+
+#[test]
+fn test_unchecked_config_does_not_hide_the_other_reports() {
+    let good = Project::new("unchecked_good", false);
+    good.pack();
+    let unpacked = Project::new("unchecked_unpacked", false);
+
+    let run = |json: bool| {
+        let mut cmd = Command::new(env!("CARGO_BIN_EXE_bento"));
+        cmd.arg("check");
+        if json {
+            cmd.arg("--json");
+        }
+        cmd.arg(good.dir.join("atlas.bento"))
+            .arg(unpacked.dir.join("atlas.bento"))
+            .arg("/nonexistent/atlas.bento")
+            .output()
+            .unwrap()
+    };
+
+    let output = run(true);
+    assert_eq!(output.status.code(), Some(2));
+    let reports: Value = serde_json::from_slice(&output.stdout)
+        .unwrap_or_else(|e| panic!("{}: {}", e, String::from_utf8_lossy(&output.stderr)));
+    let reports = reports.as_array().unwrap();
+    assert_eq!(reports.len(), 3);
+    assert_eq!(reports[0]["findings"].as_array().unwrap().len(), 0);
+    assert!(reports[1]["error"].as_str().unwrap().contains("tpsheet"));
+    assert!(reports[2]["error"].is_string());
+
+    let output = run(false);
+    assert_eq!(output.status.code(), Some(2));
+    let text = String::from_utf8(output.stdout).unwrap();
+    assert!(text.contains("matches its sources"), "{}", text);
+    assert!(text.contains("not checked"), "{}", text);
+    assert!(text.contains("/nonexistent/atlas.bento"), "{}", text);
 }
 
 #[test]

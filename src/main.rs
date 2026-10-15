@@ -132,23 +132,47 @@ fn run() -> Result<()> {
     Ok(())
 }
 
-/// Prints a report per atlas. Exits 1 if any atlas has a finding, so a script can gate on it.
+/// One config's outcome: its report, or why it could not be checked.
+#[derive(serde::Serialize)]
+#[serde(untagged)]
+enum CheckEntry {
+    Report(bento::check::AtlasReport),
+    Unchecked { config: PathBuf, error: String },
+}
+
+/// Prints a report per config, and for a config that cannot be checked (missing or unparsable
+/// config, no tpsheet, ...) an entry with the error, so one bad config never hides the others.
+/// Exits 2 if any config could not be checked, else 1 if any atlas has a finding, else 0, so a
+/// script can tell "the check did not run" from "a repack is due".
 #[allow(clippy::print_stdout)]
 fn run_check(args: &CheckArgs) -> Result<()> {
     env_logger::Builder::new()
         .filter_level(log::LevelFilter::Warn)
         .init();
 
-    let reports = args
+    let entries: Vec<CheckEntry> = args
         .configs
         .iter()
-        .map(|config| check_atlas(config))
-        .collect::<Result<Vec<_>>>()?;
+        .map(|config| match check_atlas(config) {
+            Ok(report) => CheckEntry::Report(report),
+            Err(e) => CheckEntry::Unchecked {
+                config: config.clone(),
+                error: format!("{:#}", e),
+            },
+        })
+        .collect();
 
     if args.json {
-        println!("{}", serde_json::to_string_pretty(&reports)?);
+        println!("{}", serde_json::to_string_pretty(&entries)?);
     } else {
-        for report in &reports {
+        for entry in &entries {
+            let report = match entry {
+                CheckEntry::Report(report) => report,
+                CheckEntry::Unchecked { config, error } => {
+                    println!("{}: not checked: {}", config.display(), error);
+                    continue;
+                }
+            };
             if report.findings.is_empty() {
                 println!("{}: matches its sources", report.atlas);
                 continue;
@@ -165,7 +189,16 @@ fn run_check(args: &CheckArgs) -> Result<()> {
         }
     }
 
-    if reports.iter().any(|r| !r.findings.is_empty()) {
+    if entries
+        .iter()
+        .any(|e| matches!(e, CheckEntry::Unchecked { .. }))
+    {
+        std::process::exit(2);
+    }
+    if entries
+        .iter()
+        .any(|e| matches!(e, CheckEntry::Report(r) if !r.findings.is_empty()))
+    {
         std::process::exit(1);
     }
     Ok(())
