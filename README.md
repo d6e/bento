@@ -205,13 +205,13 @@ bento check atlases/*.bento --json   # for scripts
 
 Findings:
 
-- `broken` - the tpsheet does not describe the png: wrong page size, a region past the edge, a sprite whose `pixel_hash` does not match, or a sprite listed more than once. Usually a merge that combined two packs. Repack.
+- `broken` - the tpsheet does not describe the png: a page that cannot be read or has the wrong size, a region past the edge, a margin no pack could have written, a sprite whose `pixel_hash` does not match, or a sprite listed more than once. Usually a merge that combined two packs. Repack.
 - `changed` - the atlas holds different pixels from the sprite's source, compared the way a pack would process the source now
 - `missing` - a source is not in the atlas
 - `orphaned` - the atlas has a sprite with no source
-- `unhashed` - sprites with no `pixel_hash` (TexturePacker, or bento before 0.7), so `broken` cannot be ruled out for them
+- `unhashed` - sprites with no `pixel_hash` (TexturePacker, or bento before 0.6), so `broken` cannot be ruled out for them
 
-It compares sprites only. A config change that a repack would apply, such as `padding`, `extrude`, `block_align`, `pot`, the size limits, `opaque` or trimming, is not reported; repack after changing a config.
+It compares sprites only. A config change that a repack would apply, such as `padding`, `extrude`, `block_align`, `pot`, the size limits, trimming or turning `opaque` on, is not reported; repack after changing a config. Turning `opaque` off does show up, as `changed` on every sprite with transparency.
 
 Every config gets an entry; one that cannot be checked (missing or unparsable config, no tpsheet, as with `format: json`) is reported with its error and does not stop the others. It exits 0 when every atlas matches its sources, 1 when anything is reported, and 2 when any config could not be checked (which wins over 1). Which findings call for a repack is the project's call; `broken` always does.
 

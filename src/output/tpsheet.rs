@@ -36,7 +36,7 @@ pub(crate) struct TpSprite {
     pub(crate) region: TpRegion,
     pub(crate) margin: TpMargin,
     /// See [`pixel_hash`]. Lets a consumer check that the tpsheet still describes this png.
-    /// Absent in tpsheets from TexturePacker or bento before 0.7.
+    /// Absent in tpsheets from TexturePacker or bento before 0.6.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(crate) pixel_hash: Option<String>,
 }

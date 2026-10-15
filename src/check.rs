@@ -1,12 +1,14 @@
 //! `bento check`: compare a packed atlas with its config's sources without repacking.
 //!
 //! It answers two questions that need different handling. Is the atlas broken, meaning its
-//! tpsheet no longer describes its png (a page size, an out-of-bounds region, or a pixel hash
-//! that does not match)? That is always a bug. And is a repack due, meaning sources were added,
+//! tpsheet no longer describes its png (an unreadable page or a wrong page size, a region or
+//! margin no pack could have written, a pixel hash that does not match, a sprite listed twice)?
+//! That is always a bug. And is a repack due, meaning sources were added,
 //! removed or edited since the last pack? That is normal between packs.
 //!
 //! It compares sprites only. A config change that a repack would apply (padding, extrude,
-//! block_align, pot, size limits, opaque, trimming) is not detected.
+//! block_align, pot, size limits, trimming, turning opaque on) is not detected. Turning opaque
+//! off shows up as `changed` on sprites with transparency.
 
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
@@ -33,7 +35,7 @@ pub enum FindingKind {
     Missing,
     /// The atlas holds a sprite with no source image.
     Orphaned,
-    /// Sprites without a pixel hash (TexturePacker, or bento before 0.7), so `broken` cannot
+    /// Sprites without a pixel hash (TexturePacker, or bento before 0.6), so `broken` cannot
     /// be ruled out for them.
     Unhashed,
 }
