@@ -1160,6 +1160,10 @@ impl eframe::App for BentoApp {
         // Handle dropped files
         self.handle_dropped_files(&ctx);
 
+        // Dialogs and drops above can add paths after `logic` queued thumbnails;
+        // the input panel paints a missing entry as failed (panels/input.rs).
+        self.queue_thumbnail_loading();
+
         // Top panel with title/menu bar could go here if needed
 
         // Bottom panel with Pack/Export buttons and status
