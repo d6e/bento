@@ -46,7 +46,14 @@ pub fn spawn_thumbnail_loader(paths: Vec<PathBuf>) -> mpsc::Receiver<(PathBuf, O
 
     std::thread::spawn(move || {
         for path in paths {
-            let image = load_thumbnail(&path);
+            // A decoder panic must not end the thread: the receiver would see a
+            // disconnect with this and later paths unanswered, and `poll_thumbnails`
+            // would respawn a loader on them. Catch it and report the path as failed.
+            // `AssertUnwindSafe` is fine because `path` is only read and the closure
+            // captures nothing else (std::panic::catch_unwind / UnwindSafe docs).
+            let image =
+                std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| load_thumbnail(&path)))
+                    .unwrap_or(None);
             let _ = tx.send((path, image));
         }
     });
