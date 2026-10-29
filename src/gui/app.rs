@@ -1403,7 +1403,7 @@ mod tests {
         app.state.config.input_paths = vec![new.clone()];
         app.state.runtime.thumbnails.clear();
         app.queue_thumbnail_loading();
-        loader.send((old.clone(), None)).unwrap();
+        assert!(loader.send((old.clone(), None)).is_ok());
         drop(loader);
         poll_until_loader_finishes(&mut app, &ctx);
 
