@@ -1325,4 +1325,81 @@ mod tests {
             "dropped path has no thumbnail state when the input panel draws it"
         );
     }
+
+    /// Stands in for a loader thread that is still running: the returned sender
+    /// is the loader's end, and dropping it is the loader finishing.
+    fn running_loader(
+        app: &mut BentoApp,
+    ) -> std::sync::mpsc::Sender<(PathBuf, Option<image::RgbaImage>)> {
+        let (tx, rx) = std::sync::mpsc::channel();
+        app.state.runtime.thumbnail_receiver = Some(rx);
+        tx
+    }
+
+    /// Polls until the loader is gone, with a generous deadline.
+    fn poll_until_loader_finishes(app: &mut BentoApp, ctx: &egui::Context) {
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(20);
+        while app.state.runtime.thumbnail_receiver.is_some() {
+            assert!(
+                std::time::Instant::now() < deadline,
+                "loader never finished"
+            );
+            app.poll_thumbnails(ctx);
+            std::thread::sleep(std::time::Duration::from_millis(1));
+        }
+    }
+
+    fn is_loading(app: &BentoApp, path: &PathBuf) -> bool {
+        matches!(
+            app.state.runtime.thumbnails.get(path),
+            Some(ThumbnailState::Loading)
+        )
+    }
+
+    #[test]
+    fn test_path_added_while_loader_runs_still_gets_a_thumbnail() {
+        let ctx = egui::Context::default();
+        let mut app = app();
+        let first = PathBuf::from("first_missing.png");
+        let second = PathBuf::from("second_missing.png");
+
+        app.state.config.input_paths.push(first);
+        let loader = running_loader(&mut app);
+        app.state.config.input_paths.push(second.clone());
+        app.queue_thumbnail_loading();
+        drop(loader);
+        poll_until_loader_finishes(&mut app, &ctx);
+
+        assert!(
+            !is_loading(&app, &second),
+            "path added while a loader ran is still Loading after it finished"
+        );
+    }
+
+    #[test]
+    fn test_paths_after_config_switch_get_thumbnails_and_old_results_are_dropped() {
+        let ctx = egui::Context::default();
+        let mut app = app();
+        let old = PathBuf::from("old_missing.png");
+        let new = PathBuf::from("new_missing.png");
+
+        app.state.config.input_paths.push(old.clone());
+        let loader = running_loader(&mut app);
+        // What opening a config does: swap the paths and clear the map.
+        app.state.config.input_paths = vec![new.clone()];
+        app.state.runtime.thumbnails.clear();
+        app.queue_thumbnail_loading();
+        loader.send((old.clone(), None)).unwrap();
+        drop(loader);
+        poll_until_loader_finishes(&mut app, &ctx);
+
+        assert!(
+            !is_loading(&app, &new),
+            "path from the new config is still Loading after the old loader finished"
+        );
+        assert!(
+            !app.state.runtime.thumbnails.contains_key(&old),
+            "result for a path no longer in the input list came back as an entry"
+        );
+    }
 }
