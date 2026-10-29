@@ -8,7 +8,7 @@ license = "MIT"
 
 [features]
 default = []
-gui = ["dep:eframe", "dep:egui_extras", "dep:rfd"]
+gui = ["dep:eframe", "dep:egui_extras", "dep:rfd", "dep:winit"]
 
 [package.metadata.packager]
 before-packaging-command = "cargo build --release --features gui"
@@ -54,7 +54,20 @@ glob = "0.3"
 oxipng = { version = "9", default-features = false, features = ["parallel", "zopfli"] }
 
 # GUI dependencies (optional)
-eframe = { version = "0.36", optional = true, features = ["persistence"] }
+# Render with glow (OpenGL) instead of the wgpu default.
+eframe = { version = "0.36", optional = true, default-features = false, features = [
+  "accesskit",
+  "default_fonts",
+  "glow",
+  "links",
+  "persistence",
+  "wayland",
+  "x11",
+] }
+# eframe's defaults also turn on winit's defaults (Wayland dlopen, Adwaita window
+# decorations). Turning eframe's defaults off drops them, so depend on winit to
+# keep them. Match the version eframe uses.
+winit = { version = "0.30.13", optional = true }
 egui_extras = { version = "0.36", optional = true, features = ["image"] }
 rfd = { version = "0.17", optional = true }
 
