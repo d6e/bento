@@ -665,6 +665,14 @@ impl BentoApp {
         loop {
             match receiver.try_recv() {
                 Ok((path, image)) => {
+                    // Only paths still marked Loading are waiting for a result. Anything
+                    // else was removed or cleared (config switch) since it was queued.
+                    if !matches!(
+                        self.state.runtime.thumbnails.get(&path),
+                        Some(ThumbnailState::Loading)
+                    ) {
+                        continue;
+                    }
                     let state = match image {
                         Some(img) => {
                             let color_image = egui::ColorImage::from_rgba_unmultiplied(
@@ -687,7 +695,13 @@ impl BentoApp {
                     // Loader thread finished
                     self.state.runtime.thumbnail_receiver = None;
 
-                    // Check if there are new paths that need loading
+                    // Paths marked Loading while this loader ran were never handed to
+                    // it, and every result it did send is drained. Unmark them so the
+                    // queue below gives them a loader of their own.
+                    self.state
+                        .runtime
+                        .thumbnails
+                        .retain(|_, state| !matches!(state, ThumbnailState::Loading));
                     self.queue_thumbnail_loading();
                     break;
                 }
