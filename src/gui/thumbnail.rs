@@ -7,6 +7,15 @@ pub const THUMBNAIL_SIZE: u32 = 24;
 
 /// Load a single image and resize to thumbnail size
 fn load_thumbnail(path: &Path) -> Option<RgbaImage> {
+    // Test seam: a file named `panic_*` stands in for a decoder panic.
+    #[cfg(test)]
+    if path
+        .file_name()
+        .is_some_and(|n| n.to_string_lossy().starts_with("panic_"))
+    {
+        panic!("simulated decoder panic");
+    }
+
     let img = ImageReader::open(path).ok()?.decode().ok()?.into_rgba8();
 
     let (w, h) = img.dimensions();

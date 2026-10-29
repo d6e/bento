@@ -1449,4 +1449,63 @@ mod tests {
             "result for a path no longer in the input list came back as an entry"
         );
     }
+
+    /// Polls like the frame loop does, for a fixed time, and returns how many
+    /// polls ran. Does not wait for the loader to finish.
+    fn poll_for(app: &mut BentoApp, ctx: &egui::Context, millis: u64) -> usize {
+        let end = std::time::Instant::now() + std::time::Duration::from_millis(millis);
+        let mut polls = 0;
+        while std::time::Instant::now() < end {
+            app.queue_thumbnail_loading();
+            app.poll_thumbnails(ctx);
+            polls += 1;
+            std::thread::sleep(std::time::Duration::from_millis(1));
+        }
+        polls
+    }
+
+    fn assert_all_failed(names: &[&str]) {
+        let ctx = egui::Context::default();
+        let mut app = app();
+        let paths: Vec<PathBuf> = names.iter().map(PathBuf::from).collect();
+        app.state.config.input_paths = paths.clone();
+        app.queue_thumbnail_loading();
+        poll_for(&mut app, &ctx, 500);
+
+        for path in &paths {
+            assert!(
+                matches!(
+                    app.state.runtime.thumbnails.get(path),
+                    Some(ThumbnailState::Failed)
+                ),
+                "{} did not end Failed (loader respawned or path stuck): loading={}",
+                path.display(),
+                is_loading(&app, path)
+            );
+        }
+        assert!(
+            app.state.runtime.thumbnail_receiver.is_none(),
+            "a loader is still running after every path has a result"
+        );
+    }
+
+    #[test]
+    fn test_panicking_thumbnail_fails_that_path_and_the_rest_still_load() {
+        assert_all_failed(&["a_missing.png", "panic_mid.png", "z_missing.png"]);
+    }
+
+    #[test]
+    fn test_panic_on_first_thumbnail_path() {
+        assert_all_failed(&["panic_first.png", "b_missing.png", "c_missing.png"]);
+    }
+
+    #[test]
+    fn test_panic_on_last_thumbnail_path() {
+        assert_all_failed(&["a_missing.png", "b_missing.png", "panic_last.png"]);
+    }
+
+    #[test]
+    fn test_panic_on_every_thumbnail_path() {
+        assert_all_failed(&["panic_1.png", "panic_2.png", "panic_3.png"]);
+    }
 }
