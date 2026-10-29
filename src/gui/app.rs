@@ -1044,9 +1044,11 @@ impl eframe::App for BentoApp {
     /// Window title, close handling, background tasks and auto-repack.
     ///
     /// eframe also calls this while the window is minimized or occluded, as long
-    /// as a repaint was requested, so background tasks keep finishing and closing
-    /// a hidden window still asks about unsaved changes. While hidden, only the
-    /// window state in the input is current, so input events are read in `ui`.
+    /// as a repaint was requested (eframe-0.36 glow_integration.rs, update_logic_only),
+    /// so background tasks keep finishing. Closing a hidden window with unsaved
+    /// changes is cancelled here, but the dialog is drawn in `ui`, so it appears once
+    /// the window is shown again. While hidden, only the window state in the input is
+    /// current, so input events are read in `ui`.
     fn logic(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         // Update window title
         let title = if let Some(path) = &self.state.runtime.config_path {
