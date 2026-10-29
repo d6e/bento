@@ -1333,11 +1333,44 @@ mod tests {
         output.textures_delta.clear();
 
         assert_eq!(app.state.config.input_paths, vec![dropped.clone()]);
-        // None is painted as the failed placeholder by the input panel.
-        assert!(
-            app.state.runtime.thumbnails.contains_key(&dropped),
-            "dropped path has no thumbnail state when the input panel draws it"
+        let thumb = crate::gui::thumbnail::THUMBNAIL_SIZE as f32;
+        let thumb_fills = |gray: u8| {
+            let mut found = 0;
+            for clipped in &output.shapes {
+                count_thumb_fills(&clipped.shape, thumb, gray, &mut found);
+            }
+            found
+        };
+        // The input panel paints a path with no thumbnail state as the dark
+        // failed placeholder (gray 40) and a queued one as the loading
+        // placeholder (gray 60), both a thumbnail-sized square.
+        assert_eq!(
+            thumb_fills(60),
+            1,
+            "dropped row was not painted as loading in the pass it was dropped"
         );
+        assert_eq!(
+            thumb_fills(40),
+            0,
+            "dropped row was painted as the failed placeholder"
+        );
+    }
+
+    fn count_thumb_fills(shape: &egui::Shape, size: f32, gray: u8, found: &mut usize) {
+        match shape {
+            egui::Shape::Vec(shapes) => {
+                for inner in shapes {
+                    count_thumb_fills(inner, size, gray, found);
+                }
+            }
+            egui::Shape::Rect(rect)
+                if rect.fill == egui::Color32::from_gray(gray)
+                    && rect.rect.size() == egui::vec2(size, size) =>
+            {
+                *found += 1;
+            }
+            _ => {}
+        }
     }
 
     /// Stands in for a loader thread that is still running: the returned sender
