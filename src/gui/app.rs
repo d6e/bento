@@ -46,9 +46,8 @@ impl BentoApp {
             allowed_to_close: false,
         };
 
-        // Restore persisted state
         if let Some(storage) = cc.storage {
-            app.state.runtime.last_input_dir = eframe::get_value(storage, LAST_INPUT_DIR_KEY);
+            app.restore(storage);
         }
 
         // Handle initial path
@@ -57,6 +56,12 @@ impl BentoApp {
         }
 
         app
+    }
+
+    /// Restores what `save` stored.
+    fn restore(&mut self, storage: &dyn eframe::Storage) {
+        self.state.runtime.last_input_dir =
+            eframe::get_value::<Option<PathBuf>>(storage, LAST_INPUT_DIR_KEY).flatten();
     }
 
     fn handle_initial_path(&mut self, path: PathBuf) {
@@ -1228,5 +1233,53 @@ impl eframe::App for BentoApp {
 
         // Render drag-drop overlay on top of everything
         self.render_drop_overlay(&ctx);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::HashMap;
+
+    #[derive(Default)]
+    struct MemoryStorage(HashMap<String, String>);
+
+    impl eframe::Storage for MemoryStorage {
+        fn get_string(&self, key: &str) -> Option<String> {
+            self.0.get(key).cloned()
+        }
+
+        fn set_string(&mut self, key: &str, value: String) {
+            self.0.insert(key.to_owned(), value);
+        }
+
+        fn remove_string(&mut self, key: &str) {
+            self.0.remove(key);
+        }
+
+        fn flush(&mut self) {}
+    }
+
+    fn app() -> BentoApp {
+        BentoApp {
+            state: AppState::default(),
+            config_chooser: None,
+            unsaved_changes_dialog: None,
+            allowed_to_close: false,
+        }
+    }
+
+    #[test]
+    fn test_restore_reads_back_saved_last_input_dir() {
+        let dir = PathBuf::from("/home/someone/sprites");
+        let mut storage = MemoryStorage::default();
+        let mut saved = app();
+        saved.state.runtime.last_input_dir = Some(dir.clone());
+        eframe::App::save(&mut saved, &mut storage);
+
+        let mut restored = app();
+        restored.restore(&storage);
+
+        assert_eq!(restored.state.runtime.last_input_dir, Some(dir));
     }
 }
