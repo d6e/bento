@@ -8,7 +8,7 @@ license = "MIT"
 
 [features]
 default = []
-gui = ["dep:eframe", "dep:egui_extras", "dep:rfd", "dep:winit"]
+gui = ["dep:eframe", "dep:rfd", "dep:winit"]
 
 [package.metadata.packager]
 before-packaging-command = "cargo build --release --features gui"
@@ -68,7 +68,6 @@ eframe = { version = "0.36", optional = true, default-features = false, features
 # decorations). Turning eframe's defaults off drops them, so depend on winit to
 # keep them. Match the version eframe uses.
 winit = { version = "0.30.13", optional = true }
-egui_extras = { version = "0.36", optional = true, features = ["image"] }
 rfd = { version = "0.17", optional = true }
 
 [lints.clippy]
