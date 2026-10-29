@@ -13,7 +13,10 @@ fn load_thumbnail(path: &Path) -> Option<RgbaImage> {
         .file_name()
         .is_some_and(|n| n.to_string_lossy().starts_with("panic_"))
     {
-        panic!("simulated decoder panic");
+        #[allow(clippy::panic)]
+        {
+            panic!("simulated decoder panic");
+        }
     }
 
     let img = ImageReader::open(path).ok()?.decode().ok()?.into_rgba8();
