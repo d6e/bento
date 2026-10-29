@@ -1260,6 +1260,19 @@ mod tests {
         fn flush(&mut self) {}
     }
 
+    #[derive(Debug)]
+    struct FakeDroppedFile(PathBuf);
+
+    impl egui::DroppedFile for FakeDroppedFile {
+        fn path(&self) -> &std::path::Path {
+            &self.0
+        }
+
+        fn bytes(&self) -> Result<Vec<u8>, String> {
+            Err("not readable".to_owned())
+        }
+    }
+
     fn app() -> BentoApp {
         BentoApp {
             state: AppState::default(),
@@ -1281,5 +1294,29 @@ mod tests {
         restored.restore(&storage);
 
         assert_eq!(restored.state.runtime.last_input_dir, Some(dir));
+    }
+
+    #[test]
+    fn test_dropped_file_is_queued_for_thumbnail_before_the_input_panel_draws() {
+        let ctx = egui::Context::default();
+        let mut frame = eframe::Frame::_new_kittest();
+        let mut app = app();
+        let dropped = PathBuf::from("dropped_sprite.png");
+        let input = egui::RawInput {
+            dropped_files: vec![std::sync::Arc::new(FakeDroppedFile(dropped.clone()))],
+            ..Default::default()
+        };
+
+        // `logic` already ran for this pass, then `ui` draws the panels.
+        eframe::App::logic(&mut app, &ctx, &mut frame);
+        let mut output = ctx.run_ui(input, |ui| eframe::App::ui(&mut app, ui, &mut frame));
+        output.textures_delta.clear();
+
+        assert_eq!(app.state.config.input_paths, vec![dropped.clone()]);
+        // None is painted as the failed placeholder by the input panel.
+        assert!(
+            app.state.runtime.thumbnails.contains_key(&dropped),
+            "dropped path has no thumbnail state when the input panel draws it"
+        );
     }
 }
